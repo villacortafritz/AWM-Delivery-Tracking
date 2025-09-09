@@ -2,71 +2,39 @@
    CONFIG
 =================================*/
 
-// TODO: Replace this with your Striven endpoint.
-// Example: const API_URL = '/api/striven/deliveries';
-const API_URL = null; // set to string when ready
-
-// For local dev, we’ll use your provided sample as mock data:
-const MOCK = {
-  "totalRecords": 1,
-  "pageSize": 10000,
-  "pageIndex": 0,
-  "nextPage": null,
-  "data": [
-    {
-      "Number": "17096",
-      "Name": "MasTec Union Ridge CMS From AWD",
-      "ReleasesBOLTrackingNumber": "https://parcelsapp.com/en/tracking/836689906",
-      "MilestoneName": "Union Ridge",
-      "ProjectName": "Releases",
-      "Type": "Releases",
-      "Status": "Done",
-      "DueDate": "08/26/2025 11:59:59 PM",
-      "CompletionDate": "08/22/2025 01:12:22 PM",
-      "ReleasesContractDate": "09/04/2025",
-      "CustomerName": "MasTec, Inc.",
-      "CustomerNumber": "86",
-      "CustomerAddressFullAddress": "P.O. Box 38, Clinton, IN 47842, USA",
-      "QuoteShipToLocation": "MasTec - Union Ridge"
-    }
-  ]
-};
+// Your live Striven Report endpoint:
+const API_URL = "https://api.striven.com/v2/reports/EtkAf4OkxEMXD6Txd9ruxRdnFLnxMcXKV7E0oztsAcak7TGPFhplXCnouRYX8nPBiH9tKV6WO8WNH7Vuotw";
 
 /* ===============================
    UTILITIES
 =================================*/
 
 const by = (sel, root=document) => root.querySelector(sel);
+
+// Normalize common date inputs like "MM/DD/YYYY hh:mm" or ISO → "YYYY-MM-DD".
 const fmtDate = (val) => {
   if (!val) return '';
-  // Accepts "MM/DD/YYYY ..." or ISO; return as "YYYY-MM-DD" for consistency.
-  const tryNative = new Date(val);
-  if (!isNaN(tryNative.valueOf())) return tryNative.toISOString().slice(0,10);
-
-  // Fallback simple parser for "MM/DD/YYYY"
-  const m = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  const d = new Date(val);
+  if (!isNaN(d.valueOf())) return d.toISOString().slice(0,10);
+  const m = String(val).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (m) {
-    const [_, mm, dd, yyyy] = m;
+    const [, mm, dd, yyyy] = m;
     return `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
   }
   return val;
 };
 
 function groupByCustomerMilestone(rows) {
-  // Structure: { [CustomerName]: { address, milestones: { [MilestoneName]: Task[] } } }
   const map = new Map();
   for (const r of rows) {
-    const customer = r.CustomerName?.trim() || 'Unknown Customer';
-    const milestone = r.MilestoneName?.trim() || '—';
+    const customer = (r.CustomerName || '').trim();
+    const milestone = (r.MilestoneName || '').trim();
+    if (!customer || !milestone) continue; // skip incomplete groups
 
     if (!map.has(customer)) {
-      map.set(customer, {
-        address: r.CustomerAddressFullAddress || '',
-        milestones: new Map()
-      });
+      map.set(customer, { address: r.CustomerAddressFullAddress || '', milestones: new Map() });
     }
     const c = map.get(customer);
-
     if (!c.milestones.has(milestone)) c.milestones.set(milestone, []);
     c.milestones.get(milestone).push(r);
   }
@@ -88,21 +56,10 @@ function renderCards(grouped, filters) {
   let count = 0;
 
   for (const [customerName, obj] of grouped) {
-    // If customer doesn't match, skip all their milestones
-    if (customerFilter && !customerName.toLowerCase().includes(customerFilter)) {
-      // still check if any milestone name matches + we want to show only those; but spec says search by CustomerName OR MilestoneName
-      // We'll continue but filter milestones below.
-    }
-
     for (const [milestoneName, tasks] of obj.milestones) {
-      // Apply milestone filter
-      if (milestoneFilter && !milestoneName.toLowerCase().includes(milestoneFilter)) continue;
-
-      // If customer filter set but doesn't match this customer, skip
       if (customerFilter && !customerName.toLowerCase().includes(customerFilter)) continue;
-
-      // Only render card when there are tasks (per spec)
-      if (!tasks || tasks.length === 0) continue;
+      if (milestoneFilter && !milestoneName.toLowerCase().includes(milestoneFilter)) continue;
+      if (!tasks?.length) continue;
 
       count++;
       host.appendChild(cardElement({
@@ -115,8 +72,172 @@ function renderCards(grouped, filters) {
   }
 
   empty.hidden = count > 0;
+  if (!count) empty.textContent = 'No results. Try adjusting your search.';
 }
 
 function cardElement({ customerName, milestoneName, address, tasks }) {
   const card = document.createElement('section');
-  card.className = 'c
+  card.className = 'card';
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'card__header';
+
+  const title = document.createElement('div');
+  title.className = 'card__title';
+
+  const titleText = document.createElement('span');
+  titleText.textContent = customerName;
+
+  const pill = document.createElement('span');
+  pill.className = 'pill';
+  pill.textContent = milestoneName;
+
+  title.appendChild(titleText);
+  title.appendChild(pill);
+
+  const sub = document.createElement('div');
+  sub.className = 'card__sub';
+  sub.textContent = address || '';
+
+  header.appendChild(title);
+  header.appendChild(sub);
+
+  // Table
+  const table = document.createElement('table');
+  table.className = 'table';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th style="width:30%">Name</th>
+        <th style="width:16%">BOL / Tracking</th>
+        <th style="width:12%">Status</th>
+        <th style="width:14%">Milestone</th>
+        <th style="width:10%">Due</th>
+        <th style="width:10%">Contract</th>
+        <th style="width:12%">Completion</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  const tbody = table.querySelector('tbody');
+
+  for (const t of tasks) {
+    const tr = document.createElement('tr');
+
+    // Name (fallback to Number if Name missing)
+    const tdName = document.createElement('td');
+    tdName.textContent = t.Name || t.Number || '';
+    tr.appendChild(tdName);
+
+    // Tracking
+    const tdTrack = document.createElement('td');
+    if (t.ReleasesBOLTrackingNumber) {
+      const a = document.createElement('a');
+      a.href = t.ReleasesBOLTrackingNumber;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = 'Track';
+      tdTrack.appendChild(a);
+    } else {
+      tdTrack.textContent = '—';
+    }
+    tr.appendChild(tdTrack);
+
+    // Status
+    const tdStatus = document.createElement('td');
+    const badge = document.createElement('span');
+    const isDone = String(t.Status || '').toLowerCase() === 'done';
+    badge.className = 'badge' + (isDone ? '' : ' badge--plain');
+    badge.textContent = t.Status || '';
+    tdStatus.appendChild(badge);
+    tr.appendChild(tdStatus);
+
+    // Milestone (repeat per spec)
+    const tdMilestone = document.createElement('td');
+    tdMilestone.textContent = t.MilestoneName || '';
+    tr.appendChild(tdMilestone);
+
+    // Dates
+    const tdDue = document.createElement('td');
+    tdDue.textContent = fmtDate(t.DueDate);
+    tr.appendChild(tdDue);
+
+    const tdContract = document.createElement('td');
+    tdContract.textContent = fmtDate(t.ReleasesContractDate);
+    tr.appendChild(tdContract);
+
+    const tdCompletion = document.createElement('td');
+    tdCompletion.textContent = fmtDate(t.CompletionDate);
+    tr.appendChild(tdCompletion);
+
+    tbody.appendChild(tr);
+  }
+
+  card.appendChild(header);
+  card.appendChild(table);
+  return card;
+}
+
+/* ===============================
+   DATA & FILTERS
+=================================*/
+
+async function fetchRows() {
+  try {
+    const res = await fetch(API_URL, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+    const json = await res.json();
+    // Accept either { data: [...] } or bare array
+    return Array.isArray(json?.data) ? json.data : (Array.isArray(json) ? json : []);
+  } catch (e) {
+    console.error('Data load error:', e);
+    throw e;
+  }
+}
+
+let _GROUPED = new Map();
+
+function applyFilters() {
+  const filters = {
+    customer: by('#searchCustomer').value,
+    milestone: by('#searchMilestone').value
+  };
+  renderCards(_GROUPED, filters);
+}
+
+function wireSearch() {
+  const cust = by('#searchCustomer');
+  const mile = by('#searchMilestone');
+  const clear = by('#clearFilters');
+
+  let t;
+  const onType = () => { clearTimeout(t); t = setTimeout(applyFilters, 120); };
+
+  cust.addEventListener('input', onType);
+  mile.addEventListener('input', onType);
+  clear.addEventListener('click', () => {
+    cust.value = '';
+    mile.value = '';
+    applyFilters();
+    cust.focus();
+  });
+}
+
+/* ===============================
+   BOOT
+=================================*/
+
+(async function init(){
+  wireSearch();
+  const empty = by('#empty');
+  try{
+    const rows = await fetchRows();
+    _GROUPED = groupByCustomerMilestone(rows);
+    renderCards(_GROUPED, { customer:'', milestone:'' });
+    if (!rows?.length) { empty.hidden = false; empty.textContent = 'No data returned from API.'; }
+  }catch(err){
+    empty.hidden = false;
+    empty.textContent = 'Failed to load data. (Check API access/CORS)';
+  }
+})();
