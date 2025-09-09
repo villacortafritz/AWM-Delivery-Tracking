@@ -1,0 +1,25 @@
+{
+  "totalRecords": 1,
+  "pageSize": 10000,
+  "pageIndex": 0,
+  "nextPage": null,
+  "data": [
+    {
+      "Number": "17096",
+      "Name": "MasTec Union Ridge CMS From AWD",
+      "ReleasesBOLTrackingNumber": "https://parcelsapp.com/en/tracking/836689906",
+      "ProjectName": "Releases",
+      "ProjectNumber": "19",
+      "Type": "Releases",
+      "Status": "Done",
+      "DueDate": "08/26/2025 11:59:59 PM",
+      "CompletionDate": "08/22/2025 01:12:22 PM",
+      "Description": "",
+      "CustomerName": "MasTec, Inc.",
+      "CustomerNumber": "86",
+      "LocationName": null,
+      "QuoteShipToLocation": "MasTec - Union Ridge",
+      "MilestoneName": "Union Ridge"
+    }
+  ]
+}
