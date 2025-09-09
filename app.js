@@ -1,18 +1,16 @@
-// ===============================
-// UTILITIES
-// ===============================
+// ============================================
+// app.js — UI rendering, filters, dropdown UX
+// ============================================
+
 const by = (sel, root=document) => root.querySelector(sel);
 
-// Normalize common date inputs like "MM/DD/YYYY hh:mm" or ISO → "YYYY-MM-DD".
+// Date → 'YYYY-MM-DD' (accepts ISO or 'MM/DD/YYYY ...')
 const fmtDate = (val) => {
   if (!val) return '';
   const d = new Date(val);
   if (!isNaN(d.valueOf())) return d.toISOString().slice(0,10);
   const m = String(val).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (m) {
-    const [, mm, dd, yyyy] = m;
-    return `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
-  }
+  if (m) { const [, mm, dd, yyyy] = m; return `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`; }
   return val;
 };
 
@@ -46,18 +44,47 @@ function summarizeStatus(tasks) {
   return { label: 'Mixed', cls: 'badge--mixed' };
 }
 
-// Build hint lists for datalist
-function buildHints(rows) {
-  const customers = [...new Set(rows.map(r => r.CustomerName).filter(Boolean))].sort();
-  const milestones = [...new Set(rows.map(r => r.MilestoneName).filter(Boolean))].sort();
-  const cList = by('#customersList'); const mList = by('#milestonesList');
-  cList.innerHTML = customers.map(c => `<option value="${c}"></option>`).join('');
-  mList.innerHTML = milestones.map(m => `<option value="${m}"></option>`).join('');
+/* ---------------------------
+   Simple Combobox Dropdowns
+   ---------------------------
+   - Populates with available values
+   - Shows full list on focus
+   - Filters as you type
+   - Click to select
+*/
+function setupCombo(inputEl, listEl, values, onChange) {
+  let current = values.slice();
+
+  const render = (items) => {
+    listEl.innerHTML = items.map(v => `<div class="combo-item" role="option" data-val="${v.replace(/"/g,'&quot;')}">${v}</div>`).join('');
+    listEl.hidden = items.length === 0;
+  };
+
+  // Show all on focus
+  inputEl.addEventListener('focus', () => { current = values.slice(); render(current); });
+
+  // Filter as typing
+  inputEl.addEventListener('input', () => {
+    const q = inputEl.value.toLowerCase().trim();
+    current = values.filter(v => v.toLowerCase().includes(q));
+    render(current);
+    onChange(); // live filter results even while typing
+  });
+
+  // Click to choose
+  listEl.addEventListener('click', (e) => {
+    const item = e.target.closest('.combo-item');
+    if (!item) return;
+    inputEl.value = item.getAttribute('data-val') || '';
+    listEl.hidden = true;
+    onChange();
+  });
+
+  // Hide on blur (slight delay to allow click)
+  inputEl.addEventListener('blur', () => setTimeout(() => listEl.hidden = true, 120));
 }
 
-// ===============================
-// RENDER
-// ===============================
+// ---------- Rendering ----------
 function renderCards(grouped, filters) {
   const host = by('#cards');
   const empty = by('#empty');
@@ -92,23 +119,16 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
   const card = document.createElement('section');
   card.className = 'card';
 
-  // Header
+  // Header (aligned status + milestone on same row)
   const header = document.createElement('div');
   header.className = 'card__header';
 
-  // Top row: title + milestone (left) AND status (right)
   const toprow = document.createElement('div');
   toprow.className = 'card__toprow';
 
   const title = document.createElement('div');
   title.className = 'card__title';
-  const titleText = document.createElement('span');
-  titleText.textContent = customerName;
-  const pill = document.createElement('span');
-  pill.className = 'pill';
-  pill.textContent = milestoneName;
-  title.appendChild(titleText);
-  title.appendChild(pill);
+  title.innerHTML = `<span>${customerName}</span><span class="pill">${milestoneName}</span>`;
 
   const { label, cls } = summarizeStatus(tasks);
   const statusBadge = document.createElement('span');
@@ -131,12 +151,12 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
   table.innerHTML = `
     <thead>
       <tr>
-        <th style="width:34%">Name</th>
+        <th style="width:34%">Task Name</th>
         <th style="width:20%">Tracking Link</th>
-        <th style="width:16%">Milestone</th>
-        <th style="width:10%">Due</th>
-        <th style="width:10%">Completion</th>
-        <th style="width:10%">Contract</th>
+        <th style="width:16%">Project Name</th>
+        <th style="width:10%">Due Date</th>
+        <th style="width:10%">Completion Date</th>
+        <th style="width:10%">Contract Date</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -146,12 +166,10 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
   for (const t of tasks) {
     const tr = document.createElement('tr');
 
-    // Name (fallback to Number)
     const tdName = document.createElement('td');
     tdName.textContent = t.Name || t.Number || '';
     tr.appendChild(tdName);
 
-    // Tracking link
     const tdTrack = document.createElement('td');
     if (t.ReleasesBOLTrackingNumber) {
       const a = document.createElement('a');
@@ -160,27 +178,21 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
       a.rel = 'noopener noreferrer';
       a.textContent = 'Click here to track';
       tdTrack.appendChild(a);
-    } else {
-      tdTrack.textContent = '—';
-    }
+    } else { tdTrack.textContent = '—'; }
     tr.appendChild(tdTrack);
 
-    // Milestone (echo per spec)
-    const tdMilestone = document.createElement('td');
-    tdMilestone.textContent = t.MilestoneName || '';
-    tr.appendChild(tdMilestone);
+    const tdProject = document.createElement('td');
+    tdProject.textContent = t.MilestoneName || ''; // Source field is MilestoneName; shown as "Project Name"
+    tr.appendChild(tdProject);
 
-    // Due
     const tdDue = document.createElement('td');
     tdDue.textContent = fmtDate(t.DueDate);
     tr.appendChild(tdDue);
 
-    // Completion (after Due)
     const tdCompletion = document.createElement('td');
     tdCompletion.textContent = fmtDate(t.CompletionDate);
     tr.appendChild(tdCompletion);
 
-    // Contract
     const tdContract = document.createElement('td');
     tdContract.textContent = fmtDate(t.ReleasesContractDate);
     tr.appendChild(tdContract);
@@ -193,75 +205,67 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
   return card;
 }
 
-// ===============================
-// STATE, FILTERS & REFRESH
-// ===============================
+// ---------- State, Filters & Refresh ----------
 let _GROUPED = new Map();
 
 function applyFilters() {
-  const filters = {
+  renderCards(_GROUPED, {
     customer: by('#searchCustomer').value,
     milestone: by('#searchMilestone').value
-  };
-  renderCards(_GROUPED, filters);
+  });
 }
 
-function wireSearchAndButtons(onRefresh) {
+function wireSearchAndButtons(onRefresh, hints) {
   const cust = by('#searchCustomer');
   const mile = by('#searchMilestone');
   const clear = by('#clearFilters');
   const refresh = by('#refreshBtn');
 
-  let t;
-  const onType = () => { clearTimeout(t); t = setTimeout(applyFilters, 120); };
+  // Set up custom combo dropdowns
+  setupCombo(cust, by('#comboCustomers'), hints.customers, applyFilters);
+  setupCombo(mile, by('#comboMilestones'), hints.milestones, applyFilters);
 
-  cust.addEventListener('input', onType);
-  mile.addEventListener('input', onType);
-
+  // Clear
   clear.addEventListener('click', () => {
-    cust.value = '';
-    mile.value = '';
-    applyFilters();
-    cust.focus();
+    cust.value = ''; mile.value = ''; applyFilters(); cust.focus();
   });
 
+  // Refresh
   refresh.addEventListener('click', async () => {
-    refresh.disabled = true;
-    refresh.textContent = 'Refreshing…';
+    refresh.disabled = true; refresh.textContent = 'Refreshing…';
     try { await onRefresh(); }
-    finally {
-      refresh.disabled = false;
-      refresh.textContent = 'Refresh';
-    }
+    finally { refresh.disabled = false; refresh.textContent = 'Refresh'; }
   });
 }
 
-async function reloadData() {
+async function reloadData(firstLoad=false) {
   const empty = by('#empty');
   try{
-    const rows = await fetchRows();          // from api.js
+    const rows = await loadDeliveries();     // from api.js
     _GROUPED = groupByCustomerMilestone(rows);
 
-    // build datalist hints
-    buildHints(rows);
+    // Build hints for combos (once on first load; refresh updates too)
+    const hints = deriveHints(rows);         // from api.js
+    if (firstLoad) wireSearchAndButtons(() => reloadData(false), hints);
+    else {
+      // Update combo lists on refresh
+      setupCombo(by('#searchCustomer'), by('#comboCustomers'), hints.customers, applyFilters);
+      setupCombo(by('#searchMilestone'), by('#comboMilestones'), hints.milestones, applyFilters);
+    }
 
     renderCards(_GROUPED, { customer:'', milestone:'' });
     empty.hidden = true;
     if (!rows?.length) { empty.hidden = false; empty.textContent = 'No data returned from API.'; }
   }catch(err){
     empty.hidden = false;
-    empty.textContent = 'Failed to load data. (Check API access/CORS)';
+    empty.textContent = err?.message || 'Failed to load data.';
   }
 }
 
-// ===============================
-// BOOT
-// ===============================
+// ---------- Boot ----------
 (function init(){
   // footer year
-  const y = new Date().getFullYear();
-  const yEl = by('#year'); if (yEl) yEl.textContent = y;
-
-  wireSearchAndButtons(reloadData);
-  reloadData();
+  const yEl = by('#year'); if (yEl) yEl.textContent = new Date().getFullYear();
+  // initial load (true so we wire combos once with first hints)
+  reloadData(true);
 })();

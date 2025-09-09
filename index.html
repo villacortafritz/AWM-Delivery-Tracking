@@ -17,15 +17,17 @@
     </div>
 
     <div class="search-wrap">
-      <!-- Customer -->
-      <input id="searchCustomer" type="search" placeholder="Search Customer…"
-             aria-label="Search Customer" list="customersList" />
-      <datalist id="customersList"></datalist>
+      <!-- Customer combobox -->
+      <div class="combo" data-field="customer">
+        <input id="searchCustomer" type="search" placeholder="Search Customer…" aria-label="Search Customer" autocomplete="off" />
+        <div class="combo-list" id="comboCustomers" role="listbox" hidden></div>
+      </div>
 
-      <!-- Milestone -->
-      <input id="searchMilestone" type="search" placeholder="Search Milestone…"
-             aria-label="Search Milestone" list="milestonesList" />
-      <datalist id="milestonesList"></datalist>
+      <!-- Milestone combobox -->
+      <div class="combo" data-field="milestone">
+        <input id="searchMilestone" type="search" placeholder="Search Milestone…" aria-label="Search Milestone" autocomplete="off" />
+        <div class="combo-list" id="comboMilestones" role="listbox" hidden></div>
+      </div>
 
       <div class="actions">
         <button id="refreshBtn" class="btn btn--ghost" title="Refresh data">Refresh</button>
