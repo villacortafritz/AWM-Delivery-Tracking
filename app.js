@@ -4,15 +4,23 @@
 
 const by = (sel, root=document) => root.querySelector(sel);
 
-// Date → 'YYYY-MM-DD' (accepts ISO or 'MM/DD/YYYY ...')
-const fmtDate = (val) => {
-  if (!val) return '';
-  const d = new Date(val);
-  if (!isNaN(d.valueOf())) return d.toISOString().slice(0,10);
-  const m = String(val).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (m) { const [, mm, dd, yyyy] = m; return `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`; }
-  return val;
-};
+// Parse Striven date strings and format to two-line display:
+// First line: Full month name + comma (e.g., "September,")
+// Second line: DD YYYY (e.g., "03 2025")
+function fmtDateTwoLine(val){
+  if(!val) return '';
+  let d = new Date(val);
+  if (isNaN(d)) {
+    const m = String(val).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (m){ d = new Date(`${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}T00:00:00`); }
+  }
+  if (isNaN(d)) return String(val);
+
+  const month = d.toLocaleString('en-US',{month:'long'});
+  const dd = String(d.getDate()).padStart(2,'0');
+  const yyyy = d.getFullYear();
+  return `<div class="date"><div class="m">${month},</div><div class="dy">${dd} ${yyyy}</div></div>`;
+}
 
 // Group tasks by Customer → Milestone
 function groupByCustomerMilestone(rows) {
@@ -38,20 +46,12 @@ function summarizeStatus(tasks) {
   if (set.size === 0) return { label: '—', cls: 'badge--plain' };
   if (set.size === 1) {
     const only = tasks[0].Status || '';
-    const isDone = only.toLowerCase() === 'done';
-    return { label: only, cls: isDone ? '' : 'badge--plain' };
+    return { label: only, cls: only.toLowerCase() === 'done' ? '' : 'badge--plain' };
   }
   return { label: 'Mixed', cls: 'badge--mixed' };
 }
 
-/* ---------------------------
-   Combobox Dropdowns w/ Keys
-   ---------------------------
-   - Shows list on focus
-   - Filters as you type
-   - Click or ↑/↓ + Enter to select
-   - Esc to close
-*/
+/* Combobox Dropdowns w/ Keys */
 function setupCombo(inputEl, listEl, values, onChange) {
   let filtered = values.slice();
   let activeIndex = -1;
@@ -66,71 +66,34 @@ function setupCombo(inputEl, listEl, values, onChange) {
   const openAll = () => { filtered = values.slice(); activeIndex = -1; render(); };
   const close = () => { listEl.hidden = true; activeIndex = -1; };
 
-  // Show on focus
   inputEl.addEventListener('focus', openAll);
-
-  // Filter as typing
   inputEl.addEventListener('input', () => {
     const q = inputEl.value.toLowerCase().trim();
     filtered = values.filter(v => v.toLowerCase().includes(q));
-    activeIndex = -1;
-    render();
-    onChange(); // live filter
+    activeIndex = -1; render(); onChange();   // live filter
   });
-
-  // Click to choose
   listEl.addEventListener('click', (e) => {
-    const item = e.target.closest('.combo-item');
-    if (!item) return;
-    inputEl.value = item.getAttribute('data-val') || '';
-    close();
-    onChange();
+    const item = e.target.closest('.combo-item'); if (!item) return;
+    inputEl.value = item.getAttribute('data-val') || ''; close(); onChange();
   });
-
-  // Keyboard navigation
   inputEl.addEventListener('keydown', (e) => {
-    if (listEl.hidden && (e.key === 'ArrowDown' || e.key === 'Enter')) {
-      openAll();
-      return;
-    }
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      activeIndex = Math.min(activeIndex + 1, filtered.length - 1);
-      render();
-      scrollActiveIntoView(listEl, activeIndex);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      activeIndex = Math.max(activeIndex - 1, 0);
-      render();
-      scrollActiveIntoView(listEl, activeIndex);
-    } else if (e.key === 'Enter') {
-      if (activeIndex >= 0 && activeIndex < filtered.length) {
-        inputEl.value = filtered[activeIndex];
-        close();
-        onChange();
-      }
-    } else if (e.key === 'Escape') {
-      close();
-    }
+    if (listEl.hidden && (e.key === 'ArrowDown' || e.key === 'Enter')) { openAll(); return; }
+    if (e.key === 'ArrowDown'){ e.preventDefault(); activeIndex = Math.min(activeIndex+1, filtered.length-1); render(); scrollActiveIntoView(listEl, activeIndex); }
+    else if (e.key === 'ArrowUp'){ e.preventDefault(); activeIndex = Math.max(activeIndex-1, 0); render(); scrollActiveIntoView(listEl, activeIndex); }
+    else if (e.key === 'Enter'){ if (activeIndex>=0){ inputEl.value = filtered[activeIndex]; close(); onChange(); } }
+    else if (e.key === 'Escape'){ close(); }
   });
-
-  // Hide on blur (slight delay to allow click)
   inputEl.addEventListener('blur', () => setTimeout(close, 120));
 
-  // Helpers
   function scrollActiveIntoView(container, idx){
-    const el = container.querySelectorAll('.combo-item')[idx];
-    if (!el) return;
-    const cTop = container.scrollTop;
-    const cBot = cTop + container.clientHeight;
-    const eTop = el.offsetTop;
-    const eBot = eTop + el.offsetHeight;
-    if (eTop < cTop) container.scrollTop = eTop;
-    else if (eBot > cBot) container.scrollTop = eBot - container.clientHeight;
+    const el = container.querySelectorAll('.combo-item')[idx]; if (!el) return;
+    const cTop = container.scrollTop, cBot = cTop + container.clientHeight;
+    const eTop = el.offsetTop, eBot = eTop + el.offsetHeight;
+    if (eTop < cTop) container.scrollTop = eTop; else if (eBot > cBot) container.scrollTop = eBot - container.clientHeight;
   }
 }
 
-// ---------- Rendering ----------
+/* Render */
 function renderCards(grouped, filters) {
   const host = by('#cards');
   const empty = by('#empty');
@@ -140,20 +103,13 @@ function renderCards(grouped, filters) {
   const milestoneFilter = (filters.milestone || '').toLowerCase();
 
   let count = 0;
-
   for (const [customerName, obj] of grouped) {
     for (const [milestoneName, tasks] of obj.milestones) {
       if (customerFilter && !customerName.toLowerCase().includes(customerFilter)) continue;
       if (milestoneFilter && !milestoneName.toLowerCase().includes(milestoneFilter)) continue;
       if (!tasks?.length) continue;
-
       count++;
-      host.appendChild(cardElement({
-        customerName,
-        milestoneName,
-        address: obj.address,
-        tasks
-      }));
+      host.appendChild(cardElement({ customerName, milestoneName, address: obj.address, tasks }));
     }
   }
 
@@ -162,47 +118,31 @@ function renderCards(grouped, filters) {
 }
 
 function cardElement({ customerName, milestoneName, address, tasks }) {
-  const card = document.createElement('section');
-  card.className = 'card';
+  const card = document.createElement('section'); card.className = 'card';
 
-  // Header (aligned status + milestone on same row)
-  const header = document.createElement('div');
-  header.className = 'card__header';
+  const header = document.createElement('div'); header.className = 'card__header';
+  const toprow = document.createElement('div'); toprow.className = 'card__toprow';
 
-  const toprow = document.createElement('div');
-  toprow.className = 'card__toprow';
-
-  const title = document.createElement('div');
-  title.className = 'card__title';
+  const title = document.createElement('div'); title.className = 'card__title';
   title.innerHTML = `<span>${customerName}</span><span class="pill">${milestoneName}</span>`;
 
   const { label, cls } = summarizeStatus(tasks);
-  const statusBadge = document.createElement('span');
-  statusBadge.className = 'badge ' + (cls || '');
-  statusBadge.textContent = label;
+  const statusBadge = document.createElement('span'); statusBadge.className = 'badge ' + (cls || ''); statusBadge.textContent = label;
 
-  toprow.appendChild(title);
-  toprow.appendChild(statusBadge);
+  toprow.appendChild(title); toprow.appendChild(statusBadge);
+  const sub = document.createElement('div'); sub.className = 'card__sub'; sub.textContent = address || '';
+  header.appendChild(toprow); header.appendChild(sub);
 
-  const sub = document.createElement('div');
-  sub.className = 'card__sub';
-  sub.textContent = address || '';
-
-  header.appendChild(toprow);
-  header.appendChild(sub);
-
-  // Table
-  const table = document.createElement('table');
-  table.className = 'table';
+  // Table (two-line headers for dates)
+  const table = document.createElement('table'); table.className = 'table';
   table.innerHTML = `
     <thead>
       <tr>
         <th>Task Name</th>
         <th>Tracking Link</th>
         <th>Project Name</th>
-        <th>Due Date</th>
-        <th>Completion Date</th>
-        <th>Contract Date</th>
+        <th><span class="th-stack"><span>Contract</span><span>Date</span></span></th>
+        <th><span class="th-stack"><span>Completion</span><span>Date</span></span></th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -212,46 +152,29 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
   for (const t of tasks) {
     const tr = document.createElement('tr');
 
-    const tdName = document.createElement('td');
-    tdName.textContent = t.Name || t.Number || '';
-    tr.appendChild(tdName);
+    const tdName = document.createElement('td'); tdName.textContent = t.Name || t.Number || ''; tr.appendChild(tdName);
 
     const tdTrack = document.createElement('td');
     if (t.ReleasesBOLTrackingNumber) {
-      const a = document.createElement('a');
-      a.href = t.ReleasesBOLTrackingNumber;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.textContent = 'Click here to track';
+      const a = document.createElement('a'); a.href = t.ReleasesBOLTrackingNumber; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = 'Click here to track';
       tdTrack.appendChild(a);
     } else { tdTrack.textContent = '—'; }
     tr.appendChild(tdTrack);
 
-    const tdProject = document.createElement('td');
-    tdProject.textContent = t.MilestoneName || ''; // shown as "Project Name"
-    tr.appendChild(tdProject);
+    const tdProject = document.createElement('td'); tdProject.textContent = t.MilestoneName || ''; tr.appendChild(tdProject);
 
-    const tdDue = document.createElement('td');
-    tdDue.textContent = fmtDate(t.DueDate);
-    tr.appendChild(tdDue);
+    const tdContract = document.createElement('td'); tdContract.innerHTML = fmtDateTwoLine(t.ReleasesContractDate); tr.appendChild(tdContract);
 
-    const tdCompletion = document.createElement('td');
-    tdCompletion.textContent = fmtDate(t.CompletionDate);
-    tr.appendChild(tdCompletion);
-
-    const tdContract = document.createElement('td');
-    tdContract.textContent = fmtDate(t.ReleasesContractDate);
-    tr.appendChild(tdContract);
+    const tdCompletion = document.createElement('td'); tdCompletion.innerHTML = fmtDateTwoLine(t.CompletionDate); tr.appendChild(tdCompletion);
 
     tbody.appendChild(tr);
   }
 
-  card.appendChild(header);
-  card.appendChild(table);
+  card.appendChild(header); card.appendChild(table);
   return card;
 }
 
-// ---------- State, Filters & Refresh ----------
+/* State / Filters / Refresh */
 let _GROUPED = new Map();
 
 function applyFilters() {
@@ -267,20 +190,14 @@ function wireSearchAndButtons(onRefresh, hints) {
   const clear = by('#clearFilters');
   const refresh = by('#refreshBtn');
 
-  // Set up custom combo dropdowns w/ keyboard nav
   setupCombo(cust, by('#comboCustomers'), hints.customers, applyFilters);
   setupCombo(mile, by('#comboMilestones'), hints.milestones, applyFilters);
 
-  // Clear
-  clear.addEventListener('click', () => {
-    cust.value = ''; mile.value = ''; applyFilters(); cust.focus();
-  });
+  clear.addEventListener('click', () => { cust.value = ''; mile.value = ''; applyFilters(); cust.focus(); });
 
-  // Refresh
   refresh.addEventListener('click', async () => {
     refresh.disabled = true; refresh.textContent = 'Refreshing…';
-    try { await onRefresh(); }
-    finally { refresh.disabled = false; refresh.textContent = 'Refresh'; }
+    try { await onRefresh(); } finally { refresh.disabled = false; refresh.textContent = 'Refresh'; }
   });
 }
 
@@ -290,7 +207,6 @@ async function reloadData(firstLoad=false) {
     const rows = await loadDeliveries();     // from api.js
     _GROUPED = groupByCustomerMilestone(rows);
 
-    // Build hints for combos
     const hints = deriveHints(rows);         // from api.js
     if (firstLoad) wireSearchAndButtons(() => reloadData(false), hints);
     else {
@@ -302,15 +218,12 @@ async function reloadData(firstLoad=false) {
     empty.hidden = true;
     if (!rows?.length) { empty.hidden = false; empty.textContent = 'No data returned from API.'; }
   }catch(err){
-    empty.hidden = false;
-    empty.textContent = err?.message || 'Failed to load data.';
+    empty.hidden = false; empty.textContent = err?.message || 'Failed to load data.';
   }
 }
 
-// ---------- Boot ----------
+/* Boot */
 (function init(){
-  // footer year
   const yEl = by('#year'); if (yEl) yEl.textContent = new Date().getFullYear();
-  // initial load (true so we wire combos once with first hints)
   reloadData(true);
 })();

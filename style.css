@@ -1,6 +1,6 @@
 :root{
-  --awm-light:#A0D23B; /* Light Green (Grass Blade) */
-  --awm-dark:#297D53;  /* Dark Green (Heartly Leaf) */
+  --awm-light:#A0D23B;
+  --awm-dark:#297D53;
   --bg:#f4f7f4;
   --text:#0f1e17;
   --muted:#5b6b63;
@@ -9,157 +9,134 @@
   --border:#dfe9e2;
 }
 
-/* ===== Base / Typography ===== */
+/* Base */
 *{box-sizing:border-box}
 html,body{
-  margin:0; padding:0;
-  background:var(--bg);
-  color:var(--text);
+  margin:0; padding:0; background:var(--bg); color:var(--text);
   font:17px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,"Helvetica Neue",Arial,"Apple Color Emoji","Segoe UI Emoji";
 }
 @media (min-width:900px){ html,body{ font-size:18px; } }
 
-/* ===== Header ===== */
+/* Header */
 .topbar{
   position:sticky; top:0; z-index:1000;
-  background:var(--awm-dark);
-  color:#fff;
-  border-bottom:1px solid #225f42;
-  padding:14px 18px;
-  display:flex; gap:16px; align-items:center; justify-content:space-between;
+  background:var(--awm-dark); color:#fff; border-bottom:1px solid #225f42;
+  padding:14px 18px; display:flex; gap:16px; align-items:center; justify-content:space-between;
 }
 .brand{ display:flex; align-items:center; gap:12px; }
-
-/* White-card logo */
-.logo-wrap{
-  background:#fff; border-radius:10px; padding:6px 8px;
-  box-shadow:0 4px 12px rgba(0,0,0,.12);
-  display:flex; align-items:center; justify-content:center;
-}
+.logo-wrap{ background:#fff; border-radius:10px; padding:6px 8px; box-shadow:0 4px 12px rgba(0,0,0,.12); display:flex; align-items:center; }
 .logo{ height:28px; width:auto; display:block; }
-
-/* Bigger/bolder brand, isolated so buttons don't pick it up */
 .brand-text{ font-weight:900; letter-spacing:.2px; font-size:1.2rem; }
 
-/* ===== Search / Combobox ===== */
-.search-wrap{
-  display:flex; gap:10px; width:100%; max-width:980px; align-items:center;
-}
+/* Search / Combobox */
+.search-wrap{ display:flex; gap:10px; width:100%; max-width:980px; align-items:center; }
 .combo{ position:relative; flex:1; }
 .combo input{
-  width:100%; height:48px; padding:0 14px;
-  border:1px solid #e5efe8; border-radius:999px; background:#fff;
+  width:100%; height:48px; padding:0 14px; border:1px solid #e5efe8; border-radius:999px; background:#fff;
   outline:none; font-size:1rem; color:var(--text);
 }
 .combo input::placeholder{ color:#7aa08f; }
 .combo input:focus{ box-shadow:0 0 0 4px var(--ring); border-color:#cfe5d8; }
-
-/* Dropdown list */
 .combo-list{
-  position:absolute; left:0; right:0; top:52px;
-  max-height:260px; overflow:auto;
-  background:#fff; color:var(--text);
-  border:1px solid var(--border); border-radius:12px;
-  box-shadow:0 12px 24px rgba(0,0,0,.12);
+  position:absolute; left:0; right:0; top:52px; max-height:260px; overflow:auto;
+  background:#fff; color:#0f1e17; border:1px solid var(--border); border-radius:12px; box-shadow:0 12px 24px rgba(0,0,0,.12);
 }
-.combo-item{
-  padding:10px 12px; cursor:pointer; font-size:.95rem; color:var(--text);
-}
+.combo-item{ padding:10px 12px; cursor:pointer; font-size:.95rem; }
 .combo-item:hover, .combo-item--active{ background:#f3fbf4; }
 
-/* Buttons keep their own look (don’t inherit brand styles) */
+/* Buttons */
 .actions{ display:flex; gap:8px; }
 .btn{
   height:48px; padding:0 18px; border:none; border-radius:999px;
   background:#1f5f43; color:#fff; font-weight:700; cursor:pointer; font-size:1rem;
-  letter-spacing:normal;
 }
 .btn:hover{ filter:brightness(1.06); }
 .btn[disabled]{ opacity:.6; cursor:not-allowed; }
 .btn--ghost{ background:#2a6b4b; border:1px solid #225f42; }
 
-/* ===== Layout ===== */
-.container{ max-width:1440px; margin:28px auto 96px; padding:0 12px; }
-
-/* 3/2/1 columns with slightly tighter gap and min size to free content space */
-.cards{ display:grid; gap:16px; }
+/* ===== Layout (STRICT 3 / 2 / 1) ===== */
+/* Restore small side padding so cards don’t stick to the edges,
+   but keep 3-up and the wider date columns intact. */
+.container{
+  max-width:1880px;
+  margin:28px auto 96px;
+  padding:0 clamp(8px, 1.2vw, 16px);   /* <-- restored responsive left/right padding */
+}
+.cards{ display:grid; gap:8px; }
 @media (min-width:1200px){
-  .cards{ grid-template-columns:repeat(3, minmax(430px, 1fr)); }
+  .cards{ grid-template-columns:repeat(3, minmax(480px, 1fr)); }  /* 3-up */
 }
 @media (min-width:760px) and (max-width:1199.98px){
-  .cards{ grid-template-columns:repeat(2, minmax(430px, 1fr)); }
+  .cards{ grid-template-columns:repeat(2, minmax(480px, 1fr)); }
 }
 @media (max-width:759.98px){
   .cards{ grid-template-columns:1fr; }
 }
 
 .card{
-  position:relative; background:var(--card);
-  border:1px solid var(--border); border-radius:18px; overflow:hidden;
-  box-shadow:0 10px 24px rgba(0,0,0,0.05);
+  position:relative; background:var(--card); border:1px solid var(--border);
+  border-radius:18px; overflow:hidden; box-shadow:0 10px 24px rgba(0,0,0,0.05);
 }
 
-/* ===== Card Header ===== */
+/* Card Header */
 .card__header{
-  display:flex; flex-direction:column; gap:8px;
-  padding:16px 18px 18px 18px;
-  background:linear-gradient(135deg, var(--awm-dark), #2f8b5c);
-  color:#fff;
+  display:flex; flex-direction:column; gap:8px; padding:16px 18px 18px;
+  background:linear-gradient(135deg, var(--awm-dark), #2f8b5c); color:#fff;
 }
 .card__toprow{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .card__title{ font-weight:800; display:flex; align-items:center; gap:10px; font-size:1.05rem; }
-.pill{
-  display:inline-flex; align-items:center; gap:8px;
-  background:#ffffff22; border:1px solid #ffffff33;
-  border-radius:999px; padding:6px 12px; font-size:.8rem;
-}
+.pill{ display:inline-flex; align-items:center; gap:8px; background:#ffffff22; border:1px solid #ffffff33; border-radius:999px; padding:6px 12px; font-size:.8rem; }
 .card__sub{ opacity:.95; font-size:.9rem; }
-
-/* Status pill (right) */
-.badge{
-  display:inline-block; padding:6px 12px;
-  border-radius:999px; font-size:.8rem; font-weight:800;
-  background:#eef7f1; color:#1c5d3f; border:1px solid #d6edc2; white-space:nowrap;
-}
-.badge--plain{ background:#eef2ee; color:#33443c; border:1px solid #dfe9e2; }
-.badge--mixed{ background:#fff1c2; color:#7a5600; border:1px solid #ffe08a; }
+.badge{ display:inline-block; padding:6px 12px; border-radius:999px; font-size:.8rem; font-weight:800; background:#eef7f1; color:#1c5d3f; border:1px solid #d6edc2; white-space:nowrap; }
 
 /* ===== Table ===== */
 .table{
-  width:100%;
-  border-collapse:collapse;
-  table-layout:fixed;            /* prevents overflow and aligns widths */
-  font-size:.97rem;
+  width:100%; border-collapse:collapse; table-layout:fixed; font-size:.97rem;
 }
 .table th, .table td{
-  padding:12px 14px;
+  padding:12px 16px;              /* keep visible inner padding, incl. date cols */
   border-top:1px solid var(--border);
   vertical-align:top;
 }
 .table th{
-  text-align:left;
-  background:#f3fbf4;
-  color:#204b3a;
-  position:sticky; top:0;
+  text-align:left; background:#f3fbf4; color:#204b3a; position:sticky; top:0;
+  line-height:1.25; white-space:normal; word-break:keep-all; overflow-wrap:normal;
 }
 
-/* Column widths (sum < 100% so right edge never clips) */
-.table th:nth-child(1), .table td:nth-child(1){ width:34%; word-break:break-word; }
-.table th:nth-child(2), .table td:nth-child(2){ width:18%; }
-.table th:nth-child(3), .table td:nth-child(3){ width:16%; }
-.table th:nth-child(4), .table td:nth-child(4){ width:11%; } /* Due Date */
-.table th:nth-child(5), .table td:nth-child(5){ width:11%; } /* Completion Date */
-.table th:nth-child(6), .table td:nth-child(6){ width:9%; }  /* Contract Date */
+/* Column widths:
+   - Date columns use ch units sized around “Completion” to avoid squish.
+   - Both date columns same width; other columns share the rest. */
+.table th:nth-child(4), .table td:nth-child(4),
+.table th:nth-child(5), .table td:nth-child(5){ width:12.5ch; }  /* Contract / Completion */
+
+.table th:nth-child(1), .table td:nth-child(1){ width:26%; word-break:break-word; } /* Task Name */
+.table th:nth-child(2), .table td:nth-child(2){ width:18%; }                        /* Tracking Link */
+.table th:nth-child(3), .table td:nth-child(3){ width:22%; word-break:break-word; } /* Project Name */
+
+/* Two-line headers for the Date columns (no mid-word wrap) */
+.table .th-stack{ display:inline-block; }
+.table .th-stack span{ display:block; }
+
+/* Allow the link to wrap within its cell */
+.table td:nth-child(2) a{ white-space:normal; }
+
+/* Date cell two-line style */
+.table td .date{ line-height:1.2; }
+.table td .date .m{ white-space:nowrap; }    /* Month, */
+.table td .date .dy{ white-space:nowrap; }   /* DD YYYY */
+
+/* Right-edge breathing room on last column */
+.table th:last-child,
+.table td:last-child{ padding-right:24px; }
 
 .table a{ color:#1e513a; text-decoration:none; font-weight:600; }
 .table a:hover{ text-decoration:underline; }
 
 /* Empty */
-.empty{ margin:40px 0; text-align:center; color:var(--muted); font-size:1rem; }
+.empty{ margin:40px 0; text-align:center; color:#5b6b63; font-size:1rem; }
 
-/* ===== Footer ===== */
+/* Footer */
 .footer{
-  position:fixed; bottom:0; left:0; right:0;
-  background:var(--awm-dark); color:#eaf6ec;
+  position:fixed; bottom:0; left:0; right:0; background:var(--awm-dark); color:#eaf6ec;
   border-top:1px solid #225f42; padding:12px 18px; display:flex; justify-content:center;
 }

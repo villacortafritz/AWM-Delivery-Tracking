@@ -2,19 +2,14 @@
 // api.js  — All API interaction & parsing here
 // ============================================
 
-// Striven Report endpoint
 const API_URL = "https://api.striven.com/v2/reports/EtkAf4OkxEMXD6Txd9ruxRdnFLnxMcXKV7E0oztsAcak7TGPFhplXCnouRYX8nPBiH9tKV6WO8WNH7Vuotw";
 
-/**
- * Low-level fetch wrapper.
- * - Throws an Error on non-2xx HTTP status codes with a friendly message.
- * - Network/CORS failures bubble as errors too.
- */
+/** Fetch wrapper with readable errors (handles CORS/network + HTTP codes). */
 async function fetchReportRaw() {
   let res;
   try {
     res = await fetch(API_URL, { headers: { "Accept": "application/json" } });
-  } catch (e) {
+  } catch {
     throw new Error("Network/CORS error contacting Striven.");
   }
 
@@ -26,30 +21,24 @@ async function fetchReportRaw() {
     throw new Error(`Fetch failed (${res.status}). ${text?.slice(0,140)}`);
   }
 
-  try {
-    return await res.json();
-  } catch {
-    throw new Error("Invalid JSON returned by Striven.");
-  }
+  try { return await res.json(); }
+  catch { throw new Error("Invalid JSON returned by Striven."); }
 }
 
-/**
- * Normalizes the response shape into a clean array of rows.
- * Accepts either `{ data: [...] }` or bare arrays; otherwise returns [].
- */
+/** Normalize to an array of rows whether API returns { data:[...] } or bare array. */
 function parseReport(json) {
   if (Array.isArray(json?.data)) return json.data;
   if (Array.isArray(json)) return json;
   return [];
 }
 
-/** Public: Load & normalize rows in one call for app.js */
+/** Public: load & normalize rows for the app. */
 async function loadDeliveries() {
   const json = await fetchReportRaw();
   return parseReport(json);
 }
 
-/** Derive unique lists (used for dropdowns) */
+/** Derive unique lists used in dropdowns. */
 function deriveHints(rows) {
   const customers = [...new Set(rows.map(r => r.CustomerName).filter(Boolean))].sort();
   const milestones = [...new Set(rows.map(r => r.MilestoneName).filter(Boolean))].sort();
