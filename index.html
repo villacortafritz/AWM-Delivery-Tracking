@@ -10,13 +10,19 @@
   <!-- Sticky header -->
   <header class="topbar">
     <div class="brand">
-      <img src="AWM.png" alt="AWM" class="logo" />
+      <div class="logo-wrap">
+        <img src="AWM.png" alt="AWM" class="logo" />
+      </div>
       <span class="brand-text">AWM Delivery Tracker</span>
     </div>
+
     <div class="search-wrap">
       <input id="searchCustomer" type="search" placeholder="Search Customer…" aria-label="Search Customer" />
       <input id="searchMilestone" type="search" placeholder="Search Milestone…" aria-label="Search Milestone" />
-      <button id="clearFilters" class="btn">Clear</button>
+      <div class="actions">
+        <button id="refreshBtn" class="btn btn--ghost" title="Refresh data">Refresh</button>
+        <button id="clearFilters" class="btn">Clear</button>
+      </div>
     </div>
   </header>
 
@@ -29,6 +35,8 @@
     <small>© Affordable Wire Management</small>
   </footer>
 
+  <!-- Load API first, then app -->
+  <script src="api.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

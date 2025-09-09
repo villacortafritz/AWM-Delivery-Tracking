@@ -9,7 +9,7 @@
   --border:#dfe9e2;
 }
 
-/* ===== Base / Typography (bigger for UX) ===== */
+/* ===== Base / Typography ===== */
 *{box-sizing:border-box}
 html,body{
   margin:0; padding:0;
@@ -33,16 +33,20 @@ html,body{
 .brand{
   display:flex; align-items:center; gap:12px;
 }
-.logo{
-  height:32px; width:auto; border-radius:6px; background:#fff0; display:block;
-}
-.brand-text{
-  font-weight:800; letter-spacing:.2px; font-size:1.05rem;
-}
 
-/* Search */
+/* White-card logo */
+.logo-wrap{
+  background:#fff;
+  border-radius:10px;
+  padding:6px 8px;
+  box-shadow:0 4px 12px rgba(0,0,0,.12);
+  display:flex; align-items:center; justify-content:center;
+}
+.logo{ height:28px; width:auto; display:block; }
+.brand-text{ font-weight:800; letter-spacing:.2px; font-size:1.05rem; }
+
 .search-wrap{
-  display:flex; gap:10px; width:100%; max-width:820px;
+  display:flex; gap:10px; width:100%; max-width:900px; align-items:center;
 }
 .search-wrap input{
   flex:1;
@@ -54,10 +58,9 @@ html,body{
   outline:none;
   font-size:0.95rem;
 }
-.search-wrap input:focus{
-  box-shadow:0 0 0 4px var(--ring);
-  border-color:#cfe5d8;
-}
+.search-wrap input:focus{ box-shadow:0 0 0 4px var(--ring); border-color:#cfe5d8; }
+
+.actions{ display:flex; gap:8px; }
 .btn{
   height:48px; padding:0 18px;
   border:none; border-radius:999px;
@@ -65,6 +68,11 @@ html,body{
   color:#fff; font-weight:700; cursor:pointer; font-size:0.95rem;
 }
 .btn:hover{ filter:brightness(1.06); }
+.btn[disabled]{ opacity:.6; cursor:not-allowed; }
+.btn--ghost{
+  background:#2a6b4b;
+  border:1px solid #225f42;
+}
 
 /* ===== Layout ===== */
 .container{
@@ -78,6 +86,7 @@ html,body{
   gap:18px;
 }
 .card{
+  position:relative;
   grid-column:span 12;
   background:var(--card);
   border:1px solid var(--border);
@@ -91,7 +100,7 @@ html,body{
 /* ===== Card Header ===== */
 .card__header{
   display:flex; flex-direction:column; gap:6px;
-  padding:16px 18px;
+  padding:16px 18px 18px 18px;
   background:linear-gradient(135deg, var(--awm-dark), #2f8b5c);
   color:#fff;
 }
@@ -104,6 +113,18 @@ html,body{
   border-radius:999px; padding:6px 12px; font-size:.8rem;
 }
 .card__sub{ opacity:.95; font-size:.9rem; }
+
+/* Status pill (top-right) */
+.card__status{
+  position:absolute; top:10px; right:12px;
+}
+.badge{
+  display:inline-block; padding:6px 12px;
+  border-radius:999px; font-size:.8rem; font-weight:800;
+  background:#eef7f1; color:#1c5d3f; border:1px solid #d6edc2;
+}
+.badge--plain{ background:#eef2ee; color:#33443c; border:1px solid #dfe9e2; }
+.badge--mixed{ background:#fff1c2; color:#7a5600; border:1px solid #ffe08a; }
 
 /* ===== Table ===== */
 .table{ width:100%; border-collapse:collapse; font-size:.95rem; }
@@ -118,18 +139,8 @@ html,body{
   color:#204b3a;
   position:sticky; top:0;
 }
-.table a{ color:var(--awm-dark); text-decoration:none; font-weight:600; }
+.table a{ color:#1e513a; text-decoration:none; font-weight:600; }
 .table a:hover{ text-decoration:underline; }
-
-/* Badges */
-.badge{
-  display:inline-block; padding:4px 10px;
-  border-radius:999px; font-size:.8rem; font-weight:800;
-  background:#eef7f1; color:#1c5d3f; border:1px solid #d6edc2;
-}
-.badge--plain{
-  background:#eef2ee; color:#33443c; border:1px solid #dfe9e2;
-}
 
 /* Empty */
 .empty{ margin:40px 0; text-align:center; color:var(--muted); font-size:1rem; }

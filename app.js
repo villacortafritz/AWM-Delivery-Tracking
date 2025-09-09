@@ -1,14 +1,6 @@
-/* ===============================
-   CONFIG
-=================================*/
-
-// Your live Striven Report endpoint:
-const API_URL = "https://api.striven.com/v2/reports/EtkAf4OkxEMXD6Txd9ruxRdnFLnxMcXKV7E0oztsAcak7TGPFhplXCnouRYX8nPBiH9tKV6WO8WNH7Vuotw";
-
-/* ===============================
-   UTILITIES
-=================================*/
-
+// ===============================
+// UTILITIES
+// ===============================
 const by = (sel, root=document) => root.querySelector(sel);
 
 // Normalize common date inputs like "MM/DD/YYYY hh:mm" or ISO → "YYYY-MM-DD".
@@ -24,12 +16,13 @@ const fmtDate = (val) => {
   return val;
 };
 
+// Group tasks by Customer → Milestone
 function groupByCustomerMilestone(rows) {
   const map = new Map();
   for (const r of rows) {
     const customer = (r.CustomerName || '').trim();
     const milestone = (r.MilestoneName || '').trim();
-    if (!customer || !milestone) continue; // skip incomplete groups
+    if (!customer || !milestone) continue;
 
     if (!map.has(customer)) {
       map.set(customer, { address: r.CustomerAddressFullAddress || '', milestones: new Map() });
@@ -41,10 +34,21 @@ function groupByCustomerMilestone(rows) {
   return map;
 }
 
-/* ===============================
-   RENDER
-=================================*/
+// Determine a single status label for a card (across tasks)
+function summarizeStatus(tasks) {
+  const set = new Set(tasks.map(t => String(t.Status || '').trim().toLowerCase()).filter(Boolean));
+  if (set.size === 0) return { label: '—', cls: 'badge--plain' };
+  if (set.size === 1) {
+    const only = tasks[0].Status || '';
+    const isDone = only.toLowerCase() === 'done';
+    return { label: only, cls: isDone ? '' : 'badge--plain' };
+  }
+  return { label: 'Mixed', cls: 'badge--mixed' };
+}
 
+// ===============================
+// RENDER
+// ===============================
 function renderCards(grouped, filters) {
   const host = by('#cards');
   const empty = by('#empty');
@@ -100,6 +104,15 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
   sub.className = 'card__sub';
   sub.textContent = address || '';
 
+  // Status (top-right)
+  const statusWrap = document.createElement('div');
+  statusWrap.className = 'card__status';
+  const { label, cls } = summarizeStatus(tasks);
+  const statusBadge = document.createElement('span');
+  statusBadge.className = 'badge ' + (cls || '');
+  statusBadge.textContent = label;
+  statusWrap.appendChild(statusBadge);
+
   header.appendChild(title);
   header.appendChild(sub);
 
@@ -109,13 +122,12 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
   table.innerHTML = `
     <thead>
       <tr>
-        <th style="width:30%">Name</th>
-        <th style="width:16%">BOL / Tracking</th>
-        <th style="width:12%">Status</th>
-        <th style="width:14%">Milestone</th>
-        <th style="width:10%">Due</th>
-        <th style="width:10%">Contract</th>
+        <th style="width:32%">Name</th>
+        <th style="width:18%">Tracking Link</th>
+        <th style="width:16%">Milestone</th>
+        <th style="width:12%">Due</th>
         <th style="width:12%">Completion</th>
+        <th style="width:10%">Contract</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -125,77 +137,57 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
   for (const t of tasks) {
     const tr = document.createElement('tr');
 
-    // Name (fallback to Number if Name missing)
+    // Name (fallback to Number)
     const tdName = document.createElement('td');
     tdName.textContent = t.Name || t.Number || '';
     tr.appendChild(tdName);
 
-    // Tracking
+    // Tracking link
     const tdTrack = document.createElement('td');
     if (t.ReleasesBOLTrackingNumber) {
       const a = document.createElement('a');
       a.href = t.ReleasesBOLTrackingNumber;
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
-      a.textContent = 'Track';
+      a.textContent = 'Click here to track';
       tdTrack.appendChild(a);
     } else {
       tdTrack.textContent = '—';
     }
     tr.appendChild(tdTrack);
 
-    // Status
-    const tdStatus = document.createElement('td');
-    const badge = document.createElement('span');
-    const isDone = String(t.Status || '').toLowerCase() === 'done';
-    badge.className = 'badge' + (isDone ? '' : ' badge--plain');
-    badge.textContent = t.Status || '';
-    tdStatus.appendChild(badge);
-    tr.appendChild(tdStatus);
-
-    // Milestone (repeat per spec)
+    // Milestone (echo per spec)
     const tdMilestone = document.createElement('td');
     tdMilestone.textContent = t.MilestoneName || '';
     tr.appendChild(tdMilestone);
 
-    // Dates
+    // Due
     const tdDue = document.createElement('td');
     tdDue.textContent = fmtDate(t.DueDate);
     tr.appendChild(tdDue);
 
-    const tdContract = document.createElement('td');
-    tdContract.textContent = fmtDate(t.ReleasesContractDate);
-    tr.appendChild(tdContract);
-
+    // Completion (moved right after Due)
     const tdCompletion = document.createElement('td');
     tdCompletion.textContent = fmtDate(t.CompletionDate);
     tr.appendChild(tdCompletion);
+
+    // Contract
+    const tdContract = document.createElement('td');
+    tdContract.textContent = fmtDate(t.ReleasesContractDate);
+    tr.appendChild(tdContract);
 
     tbody.appendChild(tr);
   }
 
   card.appendChild(header);
+  card.appendChild(statusWrap);
   card.appendChild(table);
   return card;
 }
 
-/* ===============================
-   DATA & FILTERS
-=================================*/
-
-async function fetchRows() {
-  try {
-    const res = await fetch(API_URL, { headers: { 'Accept': 'application/json' } });
-    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
-    const json = await res.json();
-    // Accept either { data: [...] } or bare array
-    return Array.isArray(json?.data) ? json.data : (Array.isArray(json) ? json : []);
-  } catch (e) {
-    console.error('Data load error:', e);
-    throw e;
-  }
-}
-
+// ===============================
+// STATE, FILTERS & REFRESH
+// ===============================
 let _GROUPED = new Map();
 
 function applyFilters() {
@@ -206,38 +198,54 @@ function applyFilters() {
   renderCards(_GROUPED, filters);
 }
 
-function wireSearch() {
+function wireSearchAndButtons(onRefresh) {
   const cust = by('#searchCustomer');
   const mile = by('#searchMilestone');
   const clear = by('#clearFilters');
+  const refresh = by('#refreshBtn');
 
   let t;
   const onType = () => { clearTimeout(t); t = setTimeout(applyFilters, 120); };
 
   cust.addEventListener('input', onType);
   mile.addEventListener('input', onType);
+
   clear.addEventListener('click', () => {
     cust.value = '';
     mile.value = '';
     applyFilters();
     cust.focus();
   });
+
+  refresh.addEventListener('click', async () => {
+    refresh.disabled = true;
+    refresh.textContent = 'Refreshing…';
+    try { await onRefresh(); }
+    finally {
+      refresh.disabled = false;
+      refresh.textContent = 'Refresh';
+    }
+  });
 }
 
-/* ===============================
-   BOOT
-=================================*/
-
-(async function init(){
-  wireSearch();
+async function reloadData() {
   const empty = by('#empty');
   try{
-    const rows = await fetchRows();
+    const rows = await fetchRows();          // from api.js
     _GROUPED = groupByCustomerMilestone(rows);
     renderCards(_GROUPED, { customer:'', milestone:'' });
+    empty.hidden = true;
     if (!rows?.length) { empty.hidden = false; empty.textContent = 'No data returned from API.'; }
   }catch(err){
     empty.hidden = false;
     empty.textContent = 'Failed to load data. (Check API access/CORS)';
   }
+}
+
+// ===============================
+// BOOT
+// ===============================
+(async function init(){
+  wireSearchAndButtons(reloadData);
+  await reloadData();
 })();
