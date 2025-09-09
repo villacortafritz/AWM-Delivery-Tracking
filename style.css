@@ -43,10 +43,15 @@ html,body{
   display:flex; align-items:center; justify-content:center;
 }
 .logo{ height:28px; width:auto; display:block; }
-.brand-text{ font-weight:800; letter-spacing:.2px; font-size:1.05rem; }
+
+/* Bigger/bolder brand */
+.brand-text{
+  font-weight:900; letter-spacing:.2px;
+  font-size:1.2rem;
+}
 
 .search-wrap{
-  display:flex; gap:10px; width:100%; max-width:900px; align-items:center;
+  display:flex; gap:10px; width:100%; max-width:980px; align-items:center;
 }
 .search-wrap input{
   flex:1;
@@ -56,7 +61,7 @@ html,body{
   border-radius:999px;
   background:#fff;
   outline:none;
-  font-size:0.95rem;
+  font-size:1rem;
 }
 .search-wrap input:focus{ box-shadow:0 0 0 4px var(--ring); border-color:#cfe5d8; }
 
@@ -65,7 +70,7 @@ html,body{
   height:48px; padding:0 18px;
   border:none; border-radius:999px;
   background:#1f5f43;
-  color:#fff; font-weight:700; cursor:pointer; font-size:0.95rem;
+  color:#fff; font-weight:800; cursor:pointer; font-size:1rem;
 }
 .btn:hover{ filter:brightness(1.06); }
 .btn[disabled]{ opacity:.6; cursor:not-allowed; }
@@ -80,30 +85,38 @@ html,body{
   margin:28px auto 96px;
   padding:0 18px;
 }
+
+/* Responsive grid that avoids squishing; up to 3 per row on wide screens */
 .cards{
   display:grid;
-  grid-template-columns:repeat(12,1fr);
+  grid-template-columns:repeat(auto-fit, minmax(440px, 1fr));
   gap:18px;
 }
 .card{
   position:relative;
-  grid-column:span 12;
   background:var(--card);
   border:1px solid var(--border);
   border-radius:18px;
   overflow:hidden;
   box-shadow:0 10px 24px rgba(0,0,0,0.05);
 }
-@media (min-width:800px){ .card{ grid-column:span 6; } }
-@media (min-width:1200px){ .card{ grid-column:span 4; } }
 
 /* ===== Card Header ===== */
 .card__header{
-  display:flex; flex-direction:column; gap:6px;
+  display:flex; flex-direction:column; gap:8px;
   padding:16px 18px 18px 18px;
   background:linear-gradient(135deg, var(--awm-dark), #2f8b5c);
   color:#fff;
 }
+
+/* First row keeps milestone on left and status on right (aligned) */
+.card__toprow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+
 .card__title{
   font-weight:800; display:flex; align-items:center; gap:10px; font-size:1.05rem;
 }
@@ -114,20 +127,22 @@ html,body{
 }
 .card__sub{ opacity:.95; font-size:.9rem; }
 
-/* Status pill (top-right) */
-.card__status{
-  position:absolute; top:10px; right:12px;
-}
+/* Status pill (right side of top row) */
 .badge{
   display:inline-block; padding:6px 12px;
   border-radius:999px; font-size:.8rem; font-weight:800;
   background:#eef7f1; color:#1c5d3f; border:1px solid #d6edc2;
+  white-space:nowrap;
 }
 .badge--plain{ background:#eef2ee; color:#33443c; border:1px solid #dfe9e2; }
 .badge--mixed{ background:#fff1c2; color:#7a5600; border:1px solid #ffe08a; }
 
 /* ===== Table ===== */
-.table{ width:100%; border-collapse:collapse; font-size:.95rem; }
+.table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:.97rem;
+}
 .table th, .table td{
   padding:12px 14px;
   border-top:1px solid var(--border);
@@ -141,6 +156,11 @@ html,body{
 }
 .table a{ color:#1e513a; text-decoration:none; font-weight:600; }
 .table a:hover{ text-decoration:underline; }
+
+/* Make name readable on narrower cards */
+.table td:first-child{
+  word-break:break-word;
+}
 
 /* Empty */
 .empty{ margin:40px 0; text-align:center; color:var(--muted); font-size:1rem; }

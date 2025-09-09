@@ -46,6 +46,15 @@ function summarizeStatus(tasks) {
   return { label: 'Mixed', cls: 'badge--mixed' };
 }
 
+// Build hint lists for datalist
+function buildHints(rows) {
+  const customers = [...new Set(rows.map(r => r.CustomerName).filter(Boolean))].sort();
+  const milestones = [...new Set(rows.map(r => r.MilestoneName).filter(Boolean))].sort();
+  const cList = by('#customersList'); const mList = by('#milestonesList');
+  cList.innerHTML = customers.map(c => `<option value="${c}"></option>`).join('');
+  mList.innerHTML = milestones.map(m => `<option value="${m}"></option>`).join('');
+}
+
 // ===============================
 // RENDER
 // ===============================
@@ -87,33 +96,33 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
   const header = document.createElement('div');
   header.className = 'card__header';
 
+  // Top row: title + milestone (left) AND status (right)
+  const toprow = document.createElement('div');
+  toprow.className = 'card__toprow';
+
   const title = document.createElement('div');
   title.className = 'card__title';
-
   const titleText = document.createElement('span');
   titleText.textContent = customerName;
-
   const pill = document.createElement('span');
   pill.className = 'pill';
   pill.textContent = milestoneName;
-
   title.appendChild(titleText);
   title.appendChild(pill);
+
+  const { label, cls } = summarizeStatus(tasks);
+  const statusBadge = document.createElement('span');
+  statusBadge.className = 'badge ' + (cls || '');
+  statusBadge.textContent = label;
+
+  toprow.appendChild(title);
+  toprow.appendChild(statusBadge);
 
   const sub = document.createElement('div');
   sub.className = 'card__sub';
   sub.textContent = address || '';
 
-  // Status (top-right)
-  const statusWrap = document.createElement('div');
-  statusWrap.className = 'card__status';
-  const { label, cls } = summarizeStatus(tasks);
-  const statusBadge = document.createElement('span');
-  statusBadge.className = 'badge ' + (cls || '');
-  statusBadge.textContent = label;
-  statusWrap.appendChild(statusBadge);
-
-  header.appendChild(title);
+  header.appendChild(toprow);
   header.appendChild(sub);
 
   // Table
@@ -122,11 +131,11 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
   table.innerHTML = `
     <thead>
       <tr>
-        <th style="width:32%">Name</th>
-        <th style="width:18%">Tracking Link</th>
+        <th style="width:34%">Name</th>
+        <th style="width:20%">Tracking Link</th>
         <th style="width:16%">Milestone</th>
-        <th style="width:12%">Due</th>
-        <th style="width:12%">Completion</th>
+        <th style="width:10%">Due</th>
+        <th style="width:10%">Completion</th>
         <th style="width:10%">Contract</th>
       </tr>
     </thead>
@@ -166,7 +175,7 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
     tdDue.textContent = fmtDate(t.DueDate);
     tr.appendChild(tdDue);
 
-    // Completion (moved right after Due)
+    // Completion (after Due)
     const tdCompletion = document.createElement('td');
     tdCompletion.textContent = fmtDate(t.CompletionDate);
     tr.appendChild(tdCompletion);
@@ -180,7 +189,6 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
   }
 
   card.appendChild(header);
-  card.appendChild(statusWrap);
   card.appendChild(table);
   return card;
 }
@@ -233,6 +241,10 @@ async function reloadData() {
   try{
     const rows = await fetchRows();          // from api.js
     _GROUPED = groupByCustomerMilestone(rows);
+
+    // build datalist hints
+    buildHints(rows);
+
     renderCards(_GROUPED, { customer:'', milestone:'' });
     empty.hidden = true;
     if (!rows?.length) { empty.hidden = false; empty.textContent = 'No data returned from API.'; }
@@ -245,7 +257,11 @@ async function reloadData() {
 // ===============================
 // BOOT
 // ===============================
-(async function init(){
+(function init(){
+  // footer year
+  const y = new Date().getFullYear();
+  const yEl = by('#year'); if (yEl) yEl.textContent = y;
+
   wireSearchAndButtons(reloadData);
-  await reloadData();
+  reloadData();
 })();

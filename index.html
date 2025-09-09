@@ -17,8 +17,16 @@
     </div>
 
     <div class="search-wrap">
-      <input id="searchCustomer" type="search" placeholder="Search Customer…" aria-label="Search Customer" />
-      <input id="searchMilestone" type="search" placeholder="Search Milestone…" aria-label="Search Milestone" />
+      <!-- Customer -->
+      <input id="searchCustomer" type="search" placeholder="Search Customer…"
+             aria-label="Search Customer" list="customersList" />
+      <datalist id="customersList"></datalist>
+
+      <!-- Milestone -->
+      <input id="searchMilestone" type="search" placeholder="Search Milestone…"
+             aria-label="Search Milestone" list="milestonesList" />
+      <datalist id="milestonesList"></datalist>
+
       <div class="actions">
         <button id="refreshBtn" class="btn btn--ghost" title="Refresh data">Refresh</button>
         <button id="clearFilters" class="btn">Clear</button>
@@ -32,7 +40,7 @@
   </main>
 
   <footer class="footer">
-    <small>© Affordable Wire Management</small>
+    <small>© <span id="year"></span> Affordable Wire Management</small>
   </footer>
 
   <!-- Load API first, then app -->
