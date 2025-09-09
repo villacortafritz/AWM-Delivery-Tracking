@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AWM Delivery Tracker</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Floating / sticky search -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo-dot" aria-hidden="true"></div>
+      <span>AWM Delivery Tracker</span>
+    </div>
+    <div class="search-wrap">
+      <input id="searchCustomer" type="search" placeholder="Search Customer…" aria-label="Search Customer" />
+      <input id="searchMilestone" type="search" placeholder="Search Milestone…" aria-label="Search Milestone" />
+      <button id="clearFilters" class="btn">Clear</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="cards" class="cards"></div>
+    <div id="empty" class="empty" hidden>No results. Try adjusting your search.</div>
+  </main>
+
+  <footer class="footer">
+    <small>© Affordable Wire Management</small>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
