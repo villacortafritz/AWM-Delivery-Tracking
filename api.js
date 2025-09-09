@@ -15,20 +15,17 @@ async function fetchReportRaw() {
   try {
     res = await fetch(API_URL, { headers: { "Accept": "application/json" } });
   } catch (e) {
-    // Likely network or CORS
     throw new Error("Network/CORS error contacting Striven.");
   }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    // Helpful messages by class
     if (res.status >= 500) throw new Error(`Striven server error (${res.status}). Try again later.`);
     if (res.status === 404) throw new Error(`Report not found (404). Check the API URL.`);
     if (res.status === 401 || res.status === 403) throw new Error(`Unauthorized/Forbidden (${res.status}).`);
     throw new Error(`Fetch failed (${res.status}). ${text?.slice(0,140)}`);
   }
 
-  // Try JSON decode
   try {
     return await res.json();
   } catch {
@@ -46,17 +43,13 @@ function parseReport(json) {
   return [];
 }
 
-/**
- * Public: Load & normalize rows in one call for app.js
- */
+/** Public: Load & normalize rows in one call for app.js */
 async function loadDeliveries() {
   const json = await fetchReportRaw();
   return parseReport(json);
 }
 
-/**
- * Derive unique lists (used for dropdowns)
- */
+/** Derive unique lists (used for dropdowns) */
 function deriveHints(rows) {
   const customers = [...new Set(rows.map(r => r.CustomerName).filter(Boolean))].sort();
   const milestones = [...new Set(rows.map(r => r.MilestoneName).filter(Boolean))].sort();

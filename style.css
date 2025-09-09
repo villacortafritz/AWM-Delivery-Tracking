@@ -41,29 +41,31 @@ html,body{
 /* Bigger/bolder brand, isolated so buttons don't pick it up */
 .brand-text{ font-weight:900; letter-spacing:.2px; font-size:1.2rem; }
 
-/* Search area */
+/* ===== Search / Combobox ===== */
 .search-wrap{
   display:flex; gap:10px; width:100%; max-width:980px; align-items:center;
 }
-/* Combobox wrapper to position dropdowns */
 .combo{ position:relative; flex:1; }
 .combo input{
   width:100%; height:48px; padding:0 14px;
   border:1px solid #e5efe8; border-radius:999px; background:#fff;
-  outline:none; font-size:1rem;
+  outline:none; font-size:1rem; color:var(--text);
 }
+.combo input::placeholder{ color:#7aa08f; }
 .combo input:focus{ box-shadow:0 0 0 4px var(--ring); border-color:#cfe5d8; }
+
 /* Dropdown list */
 .combo-list{
   position:absolute; left:0; right:0; top:52px;
-  max-height:240px; overflow:auto;
-  background:#fff; border:1px solid var(--border); border-radius:12px;
+  max-height:260px; overflow:auto;
+  background:#fff; color:var(--text);
+  border:1px solid var(--border); border-radius:12px;
   box-shadow:0 12px 24px rgba(0,0,0,.12);
 }
 .combo-item{
-  padding:10px 12px; cursor:pointer; font-size:.95rem;
+  padding:10px 12px; cursor:pointer; font-size:.95rem; color:var(--text);
 }
-.combo-item:hover{ background:#f3fbf4; }
+.combo-item:hover, .combo-item--active{ background:#f3fbf4; }
 
 /* Buttons keep their own look (don’t inherit brand styles) */
 .actions{ display:flex; gap:8px; }
@@ -77,16 +79,15 @@ html,body{
 .btn--ghost{ background:#2a6b4b; border:1px solid #225f42; }
 
 /* ===== Layout ===== */
-.container{ max-width:1400px; margin:28px auto 96px; padding:0 18px; }
+.container{ max-width:1440px; margin:28px auto 96px; padding:0 12px; }
 
-/* 3-column card grid on wide screens; then 2; then 1.
-   This prevents a single card from stretching full-width. */
-.cards{ display:grid; gap:18px; }
+/* 3/2/1 columns with slightly tighter gap and min size to free content space */
+.cards{ display:grid; gap:16px; }
 @media (min-width:1200px){
-  .cards{ grid-template-columns:repeat(3, minmax(440px, 1fr)); }
+  .cards{ grid-template-columns:repeat(3, minmax(430px, 1fr)); }
 }
 @media (min-width:760px) and (max-width:1199.98px){
-  .cards{ grid-template-columns:repeat(2, minmax(440px, 1fr)); }
+  .cards{ grid-template-columns:repeat(2, minmax(430px, 1fr)); }
 }
 @media (max-width:759.98px){
   .cards{ grid-template-columns:1fr; }
@@ -124,16 +125,34 @@ html,body{
 .badge--mixed{ background:#fff1c2; color:#7a5600; border:1px solid #ffe08a; }
 
 /* ===== Table ===== */
-.table{ width:100%; border-collapse:collapse; font-size:.97rem; }
-.table th, .table td{ padding:12px 14px; border-top:1px solid var(--border); vertical-align:top; }
-.table th{
-  text-align:left; background:#f3fbf4; color:#204b3a; position:sticky; top:0;
+.table{
+  width:100%;
+  border-collapse:collapse;
+  table-layout:fixed;            /* prevents overflow and aligns widths */
+  font-size:.97rem;
 }
+.table th, .table td{
+  padding:12px 14px;
+  border-top:1px solid var(--border);
+  vertical-align:top;
+}
+.table th{
+  text-align:left;
+  background:#f3fbf4;
+  color:#204b3a;
+  position:sticky; top:0;
+}
+
+/* Column widths (sum < 100% so right edge never clips) */
+.table th:nth-child(1), .table td:nth-child(1){ width:34%; word-break:break-word; }
+.table th:nth-child(2), .table td:nth-child(2){ width:18%; }
+.table th:nth-child(3), .table td:nth-child(3){ width:16%; }
+.table th:nth-child(4), .table td:nth-child(4){ width:11%; } /* Due Date */
+.table th:nth-child(5), .table td:nth-child(5){ width:11%; } /* Completion Date */
+.table th:nth-child(6), .table td:nth-child(6){ width:9%; }  /* Contract Date */
+
 .table a{ color:#1e513a; text-decoration:none; font-weight:600; }
 .table a:hover{ text-decoration:underline; }
-
-/* Long names wrap nicely */
-.table td:first-child{ word-break:break-word; }
 
 /* Empty */
 .empty{ margin:40px 0; text-align:center; color:var(--muted); font-size:1rem; }

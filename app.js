@@ -45,30 +45,37 @@ function summarizeStatus(tasks) {
 }
 
 /* ---------------------------
-   Simple Combobox Dropdowns
+   Combobox Dropdowns w/ Keys
    ---------------------------
-   - Populates with available values
-   - Shows full list on focus
+   - Shows list on focus
    - Filters as you type
-   - Click to select
+   - Click or ↑/↓ + Enter to select
+   - Esc to close
 */
 function setupCombo(inputEl, listEl, values, onChange) {
-  let current = values.slice();
+  let filtered = values.slice();
+  let activeIndex = -1;
 
-  const render = (items) => {
-    listEl.innerHTML = items.map(v => `<div class="combo-item" role="option" data-val="${v.replace(/"/g,'&quot;')}">${v}</div>`).join('');
-    listEl.hidden = items.length === 0;
+  const render = () => {
+    listEl.innerHTML = filtered.map((v,i) =>
+      `<div class="combo-item ${i===activeIndex?'combo-item--active':''}" role="option" data-val="${v.replace(/"/g,'&quot;')}">${v}</div>`
+    ).join('');
+    listEl.hidden = filtered.length === 0;
   };
 
-  // Show all on focus
-  inputEl.addEventListener('focus', () => { current = values.slice(); render(current); });
+  const openAll = () => { filtered = values.slice(); activeIndex = -1; render(); };
+  const close = () => { listEl.hidden = true; activeIndex = -1; };
+
+  // Show on focus
+  inputEl.addEventListener('focus', openAll);
 
   // Filter as typing
   inputEl.addEventListener('input', () => {
     const q = inputEl.value.toLowerCase().trim();
-    current = values.filter(v => v.toLowerCase().includes(q));
-    render(current);
-    onChange(); // live filter results even while typing
+    filtered = values.filter(v => v.toLowerCase().includes(q));
+    activeIndex = -1;
+    render();
+    onChange(); // live filter
   });
 
   // Click to choose
@@ -76,12 +83,51 @@ function setupCombo(inputEl, listEl, values, onChange) {
     const item = e.target.closest('.combo-item');
     if (!item) return;
     inputEl.value = item.getAttribute('data-val') || '';
-    listEl.hidden = true;
+    close();
     onChange();
   });
 
+  // Keyboard navigation
+  inputEl.addEventListener('keydown', (e) => {
+    if (listEl.hidden && (e.key === 'ArrowDown' || e.key === 'Enter')) {
+      openAll();
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIndex = Math.min(activeIndex + 1, filtered.length - 1);
+      render();
+      scrollActiveIntoView(listEl, activeIndex);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIndex = Math.max(activeIndex - 1, 0);
+      render();
+      scrollActiveIntoView(listEl, activeIndex);
+    } else if (e.key === 'Enter') {
+      if (activeIndex >= 0 && activeIndex < filtered.length) {
+        inputEl.value = filtered[activeIndex];
+        close();
+        onChange();
+      }
+    } else if (e.key === 'Escape') {
+      close();
+    }
+  });
+
   // Hide on blur (slight delay to allow click)
-  inputEl.addEventListener('blur', () => setTimeout(() => listEl.hidden = true, 120));
+  inputEl.addEventListener('blur', () => setTimeout(close, 120));
+
+  // Helpers
+  function scrollActiveIntoView(container, idx){
+    const el = container.querySelectorAll('.combo-item')[idx];
+    if (!el) return;
+    const cTop = container.scrollTop;
+    const cBot = cTop + container.clientHeight;
+    const eTop = el.offsetTop;
+    const eBot = eTop + el.offsetHeight;
+    if (eTop < cTop) container.scrollTop = eTop;
+    else if (eBot > cBot) container.scrollTop = eBot - container.clientHeight;
+  }
 }
 
 // ---------- Rendering ----------
@@ -151,12 +197,12 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
   table.innerHTML = `
     <thead>
       <tr>
-        <th style="width:34%">Task Name</th>
-        <th style="width:20%">Tracking Link</th>
-        <th style="width:16%">Project Name</th>
-        <th style="width:10%">Due Date</th>
-        <th style="width:10%">Completion Date</th>
-        <th style="width:10%">Contract Date</th>
+        <th>Task Name</th>
+        <th>Tracking Link</th>
+        <th>Project Name</th>
+        <th>Due Date</th>
+        <th>Completion Date</th>
+        <th>Contract Date</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -182,7 +228,7 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
     tr.appendChild(tdTrack);
 
     const tdProject = document.createElement('td');
-    tdProject.textContent = t.MilestoneName || ''; // Source field is MilestoneName; shown as "Project Name"
+    tdProject.textContent = t.MilestoneName || ''; // shown as "Project Name"
     tr.appendChild(tdProject);
 
     const tdDue = document.createElement('td');
@@ -221,7 +267,7 @@ function wireSearchAndButtons(onRefresh, hints) {
   const clear = by('#clearFilters');
   const refresh = by('#refreshBtn');
 
-  // Set up custom combo dropdowns
+  // Set up custom combo dropdowns w/ keyboard nav
   setupCombo(cust, by('#comboCustomers'), hints.customers, applyFilters);
   setupCombo(mile, by('#comboMilestones'), hints.milestones, applyFilters);
 
@@ -244,11 +290,10 @@ async function reloadData(firstLoad=false) {
     const rows = await loadDeliveries();     // from api.js
     _GROUPED = groupByCustomerMilestone(rows);
 
-    // Build hints for combos (once on first load; refresh updates too)
+    // Build hints for combos
     const hints = deriveHints(rows);         // from api.js
     if (firstLoad) wireSearchAndButtons(() => reloadData(false), hints);
     else {
-      // Update combo lists on refresh
       setupCombo(by('#searchCustomer'), by('#comboCustomers'), hints.customers, applyFilters);
       setupCombo(by('#searchMilestone'), by('#comboMilestones'), hints.milestones, applyFilters);
     }
