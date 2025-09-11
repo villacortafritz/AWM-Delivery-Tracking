@@ -41,17 +41,30 @@ function groupByCustomerMilestone(rows) {
 }
 
 // Determine a single status label for a card (across tasks)
+// If any status is "Done", label -> "Shipped" (per requirement)
 function summarizeStatus(tasks) {
-  const set = new Set(tasks.map(t => String(t.Status || '').trim().toLowerCase()).filter(Boolean));
-  if (set.size === 0) return { label: '—', cls: 'badge--plain' };
-  if (set.size === 1) {
-    const only = tasks[0].Status || '';
-    return { label: only, cls: only.toLowerCase() === 'done' ? '' : 'badge--plain' };
+  const statuses = tasks
+    .map(t => String(t.Status || '').trim())
+    .filter(Boolean);
+
+  if (statuses.length === 0) return { label: '—', cls: 'badge--plain' };
+
+  const norm = new Set(statuses.map(s => s.toLowerCase()));
+
+  // If there is only a single unique status
+  if (norm.size === 1) {
+    const only = statuses[0]; // original casing
+    const mapped = only.toLowerCase() === 'done' ? 'Shipped' : only;
+    return { label: mapped, cls: only.toLowerCase() === 'done' ? '' : 'badge--plain' };
   }
+
+  // Mixed statuses
   return { label: 'Mixed', cls: 'badge--mixed' };
 }
 
-/* Combobox Dropdowns w/ Keys */
+/* ---------------------------
+   Combobox Dropdowns w/ Keys
+   --------------------------- */
 function setupCombo(inputEl, listEl, values, onChange) {
   let filtered = values.slice();
   let activeIndex = -1;
@@ -93,7 +106,7 @@ function setupCombo(inputEl, listEl, values, onChange) {
   }
 }
 
-/* Render */
+// ---------- Rendering ----------
 function renderCards(grouped, filters) {
   const host = by('#cards');
   const empty = by('#empty');
@@ -103,11 +116,13 @@ function renderCards(grouped, filters) {
   const milestoneFilter = (filters.milestone || '').toLowerCase();
 
   let count = 0;
+
   for (const [customerName, obj] of grouped) {
     for (const [milestoneName, tasks] of obj.milestones) {
       if (customerFilter && !customerName.toLowerCase().includes(customerFilter)) continue;
       if (milestoneFilter && !milestoneName.toLowerCase().includes(milestoneFilter)) continue;
       if (!tasks?.length) continue;
+
       count++;
       host.appendChild(cardElement({ customerName, milestoneName, address: obj.address, tasks }));
     }
@@ -120,6 +135,7 @@ function renderCards(grouped, filters) {
 function cardElement({ customerName, milestoneName, address, tasks }) {
   const card = document.createElement('section'); card.className = 'card';
 
+  // Header
   const header = document.createElement('div'); header.className = 'card__header';
   const toprow = document.createElement('div'); toprow.className = 'card__toprow';
 
@@ -131,18 +147,19 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
 
   toprow.appendChild(title); toprow.appendChild(statusBadge);
   const sub = document.createElement('div'); sub.className = 'card__sub'; sub.textContent = address || '';
+
   header.appendChild(toprow); header.appendChild(sub);
 
-  // Table (two-line headers for dates)
+  // Table (Re-labeled headers per request)
   const table = document.createElement('table'); table.className = 'table';
   table.innerHTML = `
     <thead>
       <tr>
-        <th>Task Name</th>
+        <th>Shipment</th>
         <th>Tracking Link</th>
         <th>Project Name</th>
-        <th><span class="th-stack"><span>Contract</span><span>Date</span></span></th>
-        <th><span class="th-stack"><span>Completion</span><span>Date</span></span></th>
+        <th><span class="th-stack"><span>Due Date +</span><span>7 Days</span></span></th>
+        <th><span class="th-stack"><span>Ship</span><span>Date</span></span></th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -174,7 +191,7 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
   return card;
 }
 
-/* State / Filters / Refresh */
+// ---------- State, Filters & Refresh ----------
 let _GROUPED = new Map();
 
 function applyFilters() {
@@ -222,7 +239,7 @@ async function reloadData(firstLoad=false) {
   }
 }
 
-/* Boot */
+// Boot
 (function init(){
   const yEl = by('#year'); if (yEl) yEl.textContent = new Date().getFullYear();
   reloadData(true);
