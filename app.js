@@ -3,6 +3,7 @@
 // ============================================
 
 const by = (sel, root=document) => root.querySelector(sel);
+const all = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 
 // Parse Striven date strings and format to two-line display:
 // First line: Full month name + comma (e.g., "September,")
@@ -41,7 +42,7 @@ function groupByCustomerMilestone(rows) {
 }
 
 // Determine a single status label for a card (across tasks)
-// If any status is "Done", label -> "Shipped" (per requirement)
+// If any status is "Done", label -> "Shipped" (per earlier requirement)
 function summarizeStatus(tasks) {
   const statuses = tasks
     .map(t => String(t.Status || '').trim())
@@ -51,20 +52,15 @@ function summarizeStatus(tasks) {
 
   const norm = new Set(statuses.map(s => s.toLowerCase()));
 
-  // If there is only a single unique status
   if (norm.size === 1) {
-    const only = statuses[0]; // original casing
+    const only = statuses[0];
     const mapped = only.toLowerCase() === 'done' ? 'Shipped' : only;
     return { label: mapped, cls: only.toLowerCase() === 'done' ? '' : 'badge--plain' };
   }
-
-  // Mixed statuses
   return { label: 'Mixed', cls: 'badge--mixed' };
 }
 
-/* ---------------------------
-   Combobox Dropdowns w/ Keys
-   --------------------------- */
+/* Combobox Dropdowns w/ Keys (unchanged) */
 function setupCombo(inputEl, listEl, values, onChange) {
   let filtered = values.slice();
   let activeIndex = -1;
@@ -106,7 +102,134 @@ function setupCombo(inputEl, listEl, values, onChange) {
   }
 }
 
-// ---------- Rendering ----------
+/* ---------- Right-side Drawer ---------- */
+
+let drawerEls = null;
+
+function ensureDrawer() {
+  if (drawerEls) return drawerEls;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'drawer-overlay';
+  overlay.hidden = true;
+
+  const panel = document.createElement('aside');
+  panel.className = 'drawer-panel';
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-modal', 'true');
+  panel.setAttribute('aria-labelledby', 'drawerTitle');
+
+  panel.innerHTML = `
+    <div class="drawer-header">
+      <h2 id="drawerTitle" class="drawer-title"></h2>
+      <button class="drawer-close" aria-label="Close details">&times;</button>
+    </div>
+    <div class="drawer-meta"></div>
+    <div class="drawer-body">
+      <table class="drawer-table">
+        <thead><tr><th>Item</th><th style="text-align:right">Quantity</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="drawer-empty" hidden>No items for this shipment.</div>
+    </div>
+    <div class="drawer-footer">
+      <a class="drawer-track btn-link" target="_blank" rel="noopener noreferrer" hidden>Open Tracking</a>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  document.body.appendChild(panel);
+
+  const close = () => closeDrawer();
+  overlay.addEventListener('click', close);
+  panel.querySelector('.drawer-close').addEventListener('click', close);
+  document.addEventListener('keydown', (e) => {
+    if (!overlay.hidden && e.key === 'Escape') close();
+  });
+
+  drawerEls = { overlay, panel };
+  return drawerEls;
+}
+
+function openDrawer(row) {
+  const { overlay, panel } = ensureDrawer();
+
+  // ===== Title: three labeled lines =====
+  const title = panel.querySelector('.drawer-title');
+  const customer = row.CustomerName || '—';
+  const milestone = row.MilestoneName || '—';
+  const taskNumber = row.Number || '—';
+  title.innerHTML = `
+    <div><strong>Customer:</strong> ${customer}</div>
+    <div><strong>Project:</strong> ${milestone}</div>
+    <div><strong>AWM Task Number:</strong> ${taskNumber}</div>
+  `;
+
+  // ===== Meta: Status + Location (full customer address) =====
+  const meta = panel.querySelector('.drawer-meta');
+  const location = row.CustomerAddressFullAddress ? `${row.CustomerAddressFullAddress}` : '';
+  const statusRaw = (row.Status || '').trim();
+  const status = statusRaw.toLowerCase() === 'done' ? 'Shipped' : statusRaw || '—';
+  meta.innerHTML = `
+    <div class="drawer-meta-grid">
+      <div><strong>Status:</strong> ${status}</div>
+      ${location ? `<div><strong>Location:</strong> ${location}</div>` : ''}
+    </div>
+  `;
+
+  // Items
+  const tbody = panel.querySelector('.drawer-table tbody');
+  const empty = panel.querySelector('.drawer-empty');
+  tbody.innerHTML = '';
+  const items = Array.isArray(row.items) ? row.items : [];
+  if (items.length) {
+    empty.hidden = true;
+    for (const it of items) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${it.name}</td><td style="text-align:right">${it.qty === '' ? '—' : it.qty}</td>`;
+      tbody.appendChild(tr);
+    }
+  } else {
+    empty.hidden = false;
+  }
+
+  // Tracking
+  const track = panel.querySelector('.drawer-track');
+  if (row.ReleasesBOLTrackingNumber) {
+    track.href = row.ReleasesBOLTrackingNumber;
+    track.hidden = false;
+  } else {
+    track.hidden = true;
+  }
+
+  // Show
+  overlay.hidden = false;
+  panel.classList.add('open');
+
+  // focus management
+  setTimeout(() => {
+    const focusables = all('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', panel)
+      .filter(el => !el.hasAttribute('disabled') && !el.getAttribute('aria-hidden'));
+    (focusables[0] || panel).focus();
+    // Simple trap
+    panel.addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab') return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }, { once: true });
+  }, 0);
+}
+
+function closeDrawer() {
+  const els = ensureDrawer();
+  els.overlay.hidden = true;
+  els.panel.classList.remove('open');
+}
+
+/* ---------- Rendering ---------- */
+
 function renderCards(grouped, filters) {
   const host = by('#cards');
   const empty = by('#empty');
@@ -150,7 +273,7 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
 
   header.appendChild(toprow); header.appendChild(sub);
 
-  // Table (Re-labeled headers per request)
+  // Table (keep your current labels)
   const table = document.createElement('table'); table.className = 'table';
   table.innerHTML = `
     <thead>
@@ -168,6 +291,10 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
 
   for (const t of tasks) {
     const tr = document.createElement('tr');
+    tr.className = 'row-click';           // visual affordance + pointer
+    tr.tabIndex = 0;                       // keyboard focus
+    tr.setAttribute('role', 'button');     // a11y
+    tr.setAttribute('aria-label', `View items for ${t.Number || t.Name || 'shipment'}`);
 
     const tdName = document.createElement('td'); tdName.textContent = t.Name || t.Number || ''; tr.appendChild(tdName);
 
@@ -184,6 +311,12 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
 
     const tdCompletion = document.createElement('td'); tdCompletion.innerHTML = fmtDateTwoLine(t.CompletionDate); tr.appendChild(tdCompletion);
 
+    // open drawer on click/Enter/Space
+    tr.addEventListener('click', () => openDrawer(t));
+    tr.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(t); }
+    });
+
     tbody.appendChild(tr);
   }
 
@@ -191,7 +324,7 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
   return card;
 }
 
-// ---------- State, Filters & Refresh ----------
+/* ---------- State, Filters & Refresh ---------- */
 let _GROUPED = new Map();
 
 function applyFilters() {
