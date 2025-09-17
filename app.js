@@ -156,18 +156,18 @@ function ensureDrawer() {
 function openDrawer(row) {
   const { overlay, panel } = ensureDrawer();
 
-  // Labeled title lines
+  // ===== Hierarchical title: big customer, then labeled subs =====
   const title = panel.querySelector('.drawer-title');
   const customer = row.CustomerName || '—';
   const milestone = row.MilestoneName || '—';
   const taskNumber = row.Number || '—';
   title.innerHTML = `
-    <div><strong>Customer:</strong> ${customer}</div>
-    <div><strong>Project:</strong> ${milestone}</div>
-    <div><strong>AWM Task Number:</strong> ${taskNumber}</div>
+    <div class="drawer-customer">${customer}</div>
+    <div class="drawer-sub"><span class="sub-label">Project:</span> <span class="sub-val">${milestone}</span></div>
+    <div class="drawer-sub"><span class="sub-label">AWM Task Number:</span> <span class="sub-val">${taskNumber}</span></div>
   `;
 
-  // Meta: Status + Location (full customer address)
+  // ===== Meta: Status + Location (full customer address) =====
   const meta = panel.querySelector('.drawer-meta');
   const location = row.CustomerAddressFullAddress ? `${row.CustomerAddressFullAddress}` : '';
   const statusRaw = (row.Status || '').trim();
@@ -216,6 +216,12 @@ function openDrawer(row) {
   }, 0);
 }
 
+function closeDrawer() {
+  const els = ensureDrawer();
+  els.overlay.hidden = true;
+  els.panel.classList.remove('open');
+}
+
 /* ---------- Rendering ---------- */
 
 function renderCards(grouped, filters) {
@@ -261,7 +267,7 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
 
   header.appendChild(toprow); header.appendChild(sub);
 
-  // Table (updated labels: Due Date / Ship Date)
+  // Table (labels: Due Date / Ship Date)
   const table = document.createElement('table'); table.className = 'table';
   table.innerHTML = `
     <thead>

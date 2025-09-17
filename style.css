@@ -241,3 +241,36 @@ html,body{
     margin: 0 0 12px;
   }
 }
+
+/* Restore wider date columns to avoid squish */
+.table th:nth-child(4), .table td:nth-child(4),
+.table th:nth-child(5), .table td:nth-child(5){
+  width: 12ch;  /* back to comfy width */
+}
+
+/* Drawer header hierarchy + close button alignment */
+.drawer-header{ align-items: flex-start; }
+.drawer-title{ margin:0; font-weight:400; }
+.drawer-title .drawer-customer{
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #163a2b;
+  margin-bottom: 2px;
+}
+.drawer-title .drawer-sub{
+  font-size: .96rem;
+  line-height: 1.2;
+}
+.drawer-title .sub-label{
+  color: #4e6a5d;
+  font-weight: 500;     /* label: medium */
+}
+.drawer-title .sub-val{
+  color: #163a2b;
+  font-weight: 800;     /* value: bold */
+}
+.drawer-close{
+  margin-top: 2px;      /* visually top-align with title */
+  line-height: 1;
+}
+
