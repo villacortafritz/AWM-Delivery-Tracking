@@ -5,22 +5,33 @@
 const by = (sel, root=document) => root.querySelector(sel);
 const all = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 
-// Parse Striven date strings and format to two-line display:
-// First line: Full month name + comma (e.g., "September,")
-// Second line: DD YYYY (e.g., "03 2025")
+// -------- Dates --------
+function parseUSDateLike(val){
+  if(!val) return null;
+  // Accept "MM/DD/YYYY" and "MM/DD/YYYY hh:mm:ss AM/PM"
+  const m = String(val).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(.*)$/);
+  if (!m) return null;
+  const mm = m[1].padStart(2,'0');
+  const dd = m[2].padStart(2,'0');
+  const yyyy = m[3];
+  const time = m[4] ? m[4].trim() : '00:00:00';
+  const d = new Date(`${yyyy}-${mm}-${dd} ${time}`);
+  return isNaN(d) ? null : d;
+}
+function addDays(d, n){
+  const copy = new Date(d.getTime());
+  copy.setDate(copy.getDate() + n);
+  return copy;
+}
+// Two-line UI formatter
 function fmtDateTwoLine(val){
   if(!val) return '';
-  let d = new Date(val);
-  if (isNaN(d)) {
-    const m = String(val).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (m){ d = new Date(`${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}T00:00:00`); }
-  }
-  if (isNaN(d)) return String(val);
-
+  let d = val instanceof Date ? val : parseUSDateLike(val);
+  if (!d) return '';
   const month = d.toLocaleString('en-US',{month:'long'});
-  const dd = String(d.getDate()).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
   const yyyy = d.getFullYear();
-  return `<div class="date"><div class="m">${month},</div><div class="dy">${dd} ${yyyy}</div></div>`;
+  return `<div class="date"><div class="m">${month},</div><div class="dy">${day} ${yyyy}</div></div>`;
 }
 
 // Group tasks by Customer → Milestone
@@ -42,7 +53,6 @@ function groupByCustomerMilestone(rows) {
 }
 
 // Determine a single status label for a card (across tasks)
-// If any status is "Done", label -> "Shipped" (per earlier requirement)
 function summarizeStatus(tasks) {
   const statuses = tasks
     .map(t => String(t.Status || '').trim())
@@ -51,7 +61,6 @@ function summarizeStatus(tasks) {
   if (statuses.length === 0) return { label: '—', cls: 'badge--plain' };
 
   const norm = new Set(statuses.map(s => s.toLowerCase()));
-
   if (norm.size === 1) {
     const only = statuses[0];
     const mapped = only.toLowerCase() === 'done' ? 'Shipped' : only;
@@ -60,7 +69,7 @@ function summarizeStatus(tasks) {
   return { label: 'Mixed', cls: 'badge--mixed' };
 }
 
-/* Combobox Dropdowns w/ Keys (unchanged) */
+/* Combobox Dropdowns w/ Keys */
 function setupCombo(inputEl, listEl, values, onChange) {
   let filtered = values.slice();
   let activeIndex = -1;
@@ -79,7 +88,7 @@ function setupCombo(inputEl, listEl, values, onChange) {
   inputEl.addEventListener('input', () => {
     const q = inputEl.value.toLowerCase().trim();
     filtered = values.filter(v => v.toLowerCase().includes(q));
-    activeIndex = -1; render(); onChange();   // live filter
+    activeIndex = -1; render(); onChange();
   });
   listEl.addEventListener('click', (e) => {
     const item = e.target.closest('.combo-item'); if (!item) return;
@@ -87,19 +96,12 @@ function setupCombo(inputEl, listEl, values, onChange) {
   });
   inputEl.addEventListener('keydown', (e) => {
     if (listEl.hidden && (e.key === 'ArrowDown' || e.key === 'Enter')) { openAll(); return; }
-    if (e.key === 'ArrowDown'){ e.preventDefault(); activeIndex = Math.min(activeIndex+1, filtered.length-1); render(); scrollActiveIntoView(listEl, activeIndex); }
-    else if (e.key === 'ArrowUp'){ e.preventDefault(); activeIndex = Math.max(activeIndex-1, 0); render(); scrollActiveIntoView(listEl, activeIndex); }
+    if (e.key === 'ArrowDown'){ e.preventDefault(); activeIndex = Math.min(activeIndex+1, filtered.length-1); render(); }
+    else if (e.key === 'ArrowUp'){ e.preventDefault(); activeIndex = Math.max(activeIndex-1, 0); render(); }
     else if (e.key === 'Enter'){ if (activeIndex>=0){ inputEl.value = filtered[activeIndex]; close(); onChange(); } }
     else if (e.key === 'Escape'){ close(); }
   });
   inputEl.addEventListener('blur', () => setTimeout(close, 120));
-
-  function scrollActiveIntoView(container, idx){
-    const el = container.querySelectorAll('.combo-item')[idx]; if (!el) return;
-    const cTop = container.scrollTop, cBot = cTop + container.clientHeight;
-    const eTop = el.offsetTop, eBot = eTop + el.offsetHeight;
-    if (eTop < cTop) container.scrollTop = eTop; else if (eBot > cBot) container.scrollTop = eBot - container.clientHeight;
-  }
 }
 
 /* ---------- Right-side Drawer ---------- */
@@ -154,7 +156,7 @@ function ensureDrawer() {
 function openDrawer(row) {
   const { overlay, panel } = ensureDrawer();
 
-  // ===== Title: three labeled lines =====
+  // Labeled title lines
   const title = panel.querySelector('.drawer-title');
   const customer = row.CustomerName || '—';
   const milestone = row.MilestoneName || '—';
@@ -165,7 +167,7 @@ function openDrawer(row) {
     <div><strong>AWM Task Number:</strong> ${taskNumber}</div>
   `;
 
-  // ===== Meta: Status + Location (full customer address) =====
+  // Meta: Status + Location (full customer address)
   const meta = panel.querySelector('.drawer-meta');
   const location = row.CustomerAddressFullAddress ? `${row.CustomerAddressFullAddress}` : '';
   const statusRaw = (row.Status || '').trim();
@@ -211,21 +213,7 @@ function openDrawer(row) {
     const focusables = all('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', panel)
       .filter(el => !el.hasAttribute('disabled') && !el.getAttribute('aria-hidden'));
     (focusables[0] || panel).focus();
-    // Simple trap
-    panel.addEventListener('keydown', (e) => {
-      if (e.key !== 'Tab') return;
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    }, { once: true });
   }, 0);
-}
-
-function closeDrawer() {
-  const els = ensureDrawer();
-  els.overlay.hidden = true;
-  els.panel.classList.remove('open');
 }
 
 /* ---------- Rendering ---------- */
@@ -273,7 +261,7 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
 
   header.appendChild(toprow); header.appendChild(sub);
 
-  // Table (keep your current labels)
+  // Table (updated labels: Due Date / Ship Date)
   const table = document.createElement('table'); table.className = 'table';
   table.innerHTML = `
     <thead>
@@ -281,7 +269,7 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
         <th>Shipment</th>
         <th>Tracking Link</th>
         <th>Project Name</th>
-        <th><span class="th-stack"><span>Due Date +</span><span>7 Days</span></span></th>
+        <th><span class="th-stack"><span>Due</span><span>Date</span></span></th>
         <th><span class="th-stack"><span>Ship</span><span>Date</span></span></th>
       </tr>
     </thead>
@@ -289,15 +277,26 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
   `;
   const tbody = table.querySelector('tbody');
 
-  for (const t of tasks) {
+  // Sort tasks by Ship Date ascending (nearest first)
+  const sorted = tasks.slice().sort((a,b) => {
+    const da = parseUSDateLike(a.CompletionDate);
+    const db = parseUSDateLike(b.CompletionDate);
+    const av = da ? da.getTime() : Number.POSITIVE_INFINITY;
+    const bv = db ? db.getTime() : Number.POSITIVE_INFINITY;
+    return av - bv;
+  });
+
+  for (const t of sorted) {
     const tr = document.createElement('tr');
-    tr.className = 'row-click';           // visual affordance + pointer
-    tr.tabIndex = 0;                       // keyboard focus
-    tr.setAttribute('role', 'button');     // a11y
+    tr.className = 'row-click';
+    tr.tabIndex = 0;
+    tr.setAttribute('role', 'button');
     tr.setAttribute('aria-label', `View items for ${t.Number || t.Name || 'shipment'}`);
 
+    // Shipment (name/number)
     const tdName = document.createElement('td'); tdName.textContent = t.Name || t.Number || ''; tr.appendChild(tdName);
 
+    // Tracking
     const tdTrack = document.createElement('td');
     if (t.ReleasesBOLTrackingNumber) {
       const a = document.createElement('a'); a.href = t.ReleasesBOLTrackingNumber; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = 'Click here to track';
@@ -305,17 +304,20 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
     } else { tdTrack.textContent = '—'; }
     tr.appendChild(tdTrack);
 
+    // Project
     const tdProject = document.createElement('td'); tdProject.textContent = t.MilestoneName || ''; tr.appendChild(tdProject);
 
-    const tdContract = document.createElement('td'); tdContract.innerHTML = fmtDateTwoLine(t.ReleasesContractDate); tr.appendChild(tdContract);
+    // Due Date = DueDate + 7 days
+    let duePlus7 = '';
+    const due = parseUSDateLike(t.DueDate);
+    if (due) duePlus7 = fmtDateTwoLine(addDays(due, 7));
+    const tdDue = document.createElement('td'); tdDue.innerHTML = duePlus7 || ''; tr.appendChild(tdDue);
 
-    const tdCompletion = document.createElement('td'); tdCompletion.innerHTML = fmtDateTwoLine(t.CompletionDate); tr.appendChild(tdCompletion);
+    // Ship Date (CompletionDate)
+    const tdShip = document.createElement('td'); tdShip.innerHTML = fmtDateTwoLine(t.CompletionDate) || ''; tr.appendChild(tdShip);
 
-    // open drawer on click/Enter/Space
     tr.addEventListener('click', () => openDrawer(t));
-    tr.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(t); }
-    });
+    tr.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(t); } });
 
     tbody.appendChild(tr);
   }
@@ -354,10 +356,10 @@ function wireSearchAndButtons(onRefresh, hints) {
 async function reloadData(firstLoad=false) {
   const empty = by('#empty');
   try{
-    const rows = await loadDeliveries();     // from api.js
+    const rows = await loadDeliveries();
     _GROUPED = groupByCustomerMilestone(rows);
 
-    const hints = deriveHints(rows);         // from api.js
+    const hints = deriveHints(rows);
     if (firstLoad) wireSearchAndButtons(() => reloadData(false), hints);
     else {
       setupCombo(by('#searchCustomer'), by('#comboCustomers'), hints.customers, applyFilters);

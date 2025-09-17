@@ -219,3 +219,25 @@ html,body{
 /* clickable table row */
 .row-click{ cursor:pointer; }
 .row-click:focus{ outline: 2px solid var(--awm-dark); outline-offset: 2px; }
+
+/* 1) Slightly narrower date columns */
+.table th:nth-child(4), .table td:nth-child(4),
+.table th:nth-child(5), .table td:nth-child(5){
+  width: 10.5ch; /* was 12.5ch */
+}
+
+/* 2) Masonry flow on wide screens to remove tall-gap issue */
+@media (min-width:1200px){
+  .cards{
+    /* override grid to masonry columns */
+    display:block;
+    column-count: 3;
+    column-gap: 12px;
+  }
+  .card{
+    display:inline-block;
+    width:100%;
+    break-inside: avoid;
+    margin: 0 0 12px;
+  }
+}
