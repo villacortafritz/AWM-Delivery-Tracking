@@ -43,11 +43,18 @@ function groupByCustomerMilestone(rows) {
     if (!customer || !milestone) continue;
 
     if (!map.has(customer)) {
-      map.set(customer, { address: r.CustomerAddressFullAddress || '', milestones: new Map() });
+      // Use Ship-To address first; fall back to customer address
+      const shipTo = r.QuoteShipToAddressFullAddress || r.CustomerAddressFullAddress || '';
+      map.set(customer, { shipTo, milestones: new Map() });
     }
     const c = map.get(customer);
     if (!c.milestones.has(milestone)) c.milestones.set(milestone, []);
     c.milestones.get(milestone).push(r);
+
+    // If we didn't have a ship-to yet and this row has one, set it
+    if (!c.shipTo && (r.QuoteShipToAddressFullAddress || r.CustomerAddressFullAddress)) {
+      c.shipTo = r.QuoteShipToAddressFullAddress || r.CustomerAddressFullAddress || '';
+    }
   }
   return map;
 }
@@ -167,9 +174,9 @@ function openDrawer(row) {
     <div class="drawer-sub"><span class="sub-label">AWM Task Number:</span> <span class="sub-val">${taskNumber}</span></div>
   `;
 
-  // ===== Meta: Status + Location (full customer address) =====
+  // ===== Meta: Status + Location (Ship-To address preferred) =====
   const meta = panel.querySelector('.drawer-meta');
-  const location = row.CustomerAddressFullAddress ? `${row.CustomerAddressFullAddress}` : '';
+  const location = row.QuoteShipToAddressFullAddress || row.CustomerAddressFullAddress || '';
   const statusRaw = (row.Status || '').trim();
   const status = statusRaw.toLowerCase() === 'done' ? 'Shipped' : statusRaw || '—';
   meta.innerHTML = `
@@ -179,11 +186,11 @@ function openDrawer(row) {
     </div>
   `;
 
-  // Items
+  // Items (exclude "80-0009")
   const tbody = panel.querySelector('.drawer-table tbody');
   const empty = panel.querySelector('.drawer-empty');
   tbody.innerHTML = '';
-  const items = Array.isArray(row.items) ? row.items : [];
+  const items = (Array.isArray(row.items) ? row.items : []).filter(it => (it.name || '').trim() !== '80-0009');
   if (items.length) {
     empty.hidden = true;
     for (const it of items) {
@@ -241,7 +248,7 @@ function renderCards(grouped, filters) {
       if (!tasks?.length) continue;
 
       count++;
-      host.appendChild(cardElement({ customerName, milestoneName, address: obj.address, tasks }));
+      host.appendChild(cardElement({ customerName, milestoneName, shipTo: obj.shipTo, tasks }));
     }
   }
 
@@ -249,7 +256,7 @@ function renderCards(grouped, filters) {
   if (!count) empty.textContent = 'No results. Try adjusting your search.';
 }
 
-function cardElement({ customerName, milestoneName, address, tasks }) {
+function cardElement({ customerName, milestoneName, shipTo, tasks }) {
   const card = document.createElement('section'); card.className = 'card';
 
   // Header
@@ -263,7 +270,7 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
   const statusBadge = document.createElement('span'); statusBadge.className = 'badge ' + (cls || ''); statusBadge.textContent = label;
 
   toprow.appendChild(title); toprow.appendChild(statusBadge);
-  const sub = document.createElement('div'); sub.className = 'card__sub'; sub.textContent = address || '';
+  const sub = document.createElement('div'); sub.className = 'card__sub'; sub.textContent = shipTo || '';
 
   header.appendChild(toprow); header.appendChild(sub);
 
