@@ -2,13 +2,18 @@
 // app.js — UI rendering, filters, dropdown UX
 // ============================================
 
+// Use globals exposed by api.js (loaded in index.html)
+const { loadDeliveries, deriveHints } = window;
+
+// Routing helpers (module)
+import { getRouteLock, getPrefilterMilestone, getHashTask } from './routing.js';
+
 const by = (sel, root=document) => root.querySelector(sel);
 const all = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 
 // -------- Dates --------
 function parseUSDateLike(val){
   if(!val) return null;
-  // Accept "MM/DD/YYYY" and "MM/DD/YYYY hh:mm:ss AM/PM"
   const m = String(val).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(.*)$/);
   if (!m) return null;
   const mm = m[1].padStart(2,'0');
@@ -23,7 +28,6 @@ function addDays(d, n){
   copy.setDate(copy.getDate() + n);
   return copy;
 }
-// Two-line UI formatter
 function fmtDateTwoLine(val){
   if(!val) return '';
   let d = val instanceof Date ? val : parseUSDateLike(val);
@@ -43,18 +47,15 @@ function groupByCustomerMilestone(rows) {
     if (!customer || !milestone) continue;
 
     if (!map.has(customer)) {
-      // Use Ship-To address first; fall back to customer address
-      const shipTo = r.QuoteShipToAddressFullAddress || r.CustomerAddressFullAddress || '';
-      map.set(customer, { shipTo, milestones: new Map() });
+      // Prefer Ship-To for card subheader; fall back to customer address
+      map.set(customer, {
+        address: r.QuoteShipToAddressFullAddress || r.CustomerAddressFullAddress || '',
+        milestones: new Map()
+      });
     }
     const c = map.get(customer);
     if (!c.milestones.has(milestone)) c.milestones.set(milestone, []);
     c.milestones.get(milestone).push(r);
-
-    // If we didn't have a ship-to yet and this row has one, set it
-    if (!c.shipTo && (r.QuoteShipToAddressFullAddress || r.CustomerAddressFullAddress)) {
-      c.shipTo = r.QuoteShipToAddressFullAddress || r.CustomerAddressFullAddress || '';
-    }
   }
   return map;
 }
@@ -114,10 +115,8 @@ function setupCombo(inputEl, listEl, values, onChange) {
 /* ---------- Right-side Drawer ---------- */
 
 let drawerEls = null;
-
 function ensureDrawer() {
   if (drawerEls) return drawerEls;
-
   const overlay = document.createElement('div');
   overlay.className = 'drawer-overlay';
   overlay.hidden = true;
@@ -159,11 +158,9 @@ function ensureDrawer() {
   drawerEls = { overlay, panel };
   return drawerEls;
 }
-
 function openDrawer(row) {
   const { overlay, panel } = ensureDrawer();
 
-  // ===== Hierarchical title: big customer, then labeled subs =====
   const title = panel.querySelector('.drawer-title');
   const customer = row.CustomerName || '—';
   const milestone = row.MilestoneName || '—';
@@ -174,7 +171,6 @@ function openDrawer(row) {
     <div class="drawer-sub"><span class="sub-label">AWM Task Number:</span> <span class="sub-val">${taskNumber}</span></div>
   `;
 
-  // ===== Meta: Status + Location (Ship-To address preferred) =====
   const meta = panel.querySelector('.drawer-meta');
   const location = row.QuoteShipToAddressFullAddress || row.CustomerAddressFullAddress || '';
   const statusRaw = (row.Status || '').trim();
@@ -186,11 +182,12 @@ function openDrawer(row) {
     </div>
   `;
 
-  // Items (exclude "80-0009")
   const tbody = panel.querySelector('.drawer-table tbody');
   const empty = panel.querySelector('.drawer-empty');
   tbody.innerHTML = '';
-  const items = (Array.isArray(row.items) ? row.items : []).filter(it => (it.name || '').trim() !== '80-0009');
+  const items = (Array.isArray(row.items) ? row.items : []).filter(
+    it => (it.name || '').trim() !== '80-0009'
+  );
   if (items.length) {
     empty.hidden = true;
     for (const it of items) {
@@ -202,27 +199,13 @@ function openDrawer(row) {
     empty.hidden = false;
   }
 
-  // Tracking
   const track = panel.querySelector('.drawer-track');
-  if (row.ReleasesBOLTrackingNumber) {
-    track.href = row.ReleasesBOLTrackingNumber;
-    track.hidden = false;
-  } else {
-    track.hidden = true;
-  }
+  if (row.ReleasesBOLTrackingNumber) { track.href = row.ReleasesBOLTrackingNumber; track.hidden = false; }
+  else { track.hidden = true; }
 
-  // Show
   overlay.hidden = false;
   panel.classList.add('open');
-
-  // focus management
-  setTimeout(() => {
-    const focusables = all('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', panel)
-      .filter(el => !el.hasAttribute('disabled') && !el.getAttribute('aria-hidden'));
-    (focusables[0] || panel).focus();
-  }, 0);
 }
-
 function closeDrawer() {
   const els = ensureDrawer();
   els.overlay.hidden = true;
@@ -248,7 +231,7 @@ function renderCards(grouped, filters) {
       if (!tasks?.length) continue;
 
       count++;
-      host.appendChild(cardElement({ customerName, milestoneName, shipTo: obj.shipTo, tasks }));
+      host.appendChild(cardElement({ customerName, milestoneName, address: obj.address, tasks }));
     }
   }
 
@@ -256,10 +239,9 @@ function renderCards(grouped, filters) {
   if (!count) empty.textContent = 'No results. Try adjusting your search.';
 }
 
-function cardElement({ customerName, milestoneName, shipTo, tasks }) {
+function cardElement({ customerName, milestoneName, address, tasks }) {
   const card = document.createElement('section'); card.className = 'card';
 
-  // Header
   const header = document.createElement('div'); header.className = 'card__header';
   const toprow = document.createElement('div'); toprow.className = 'card__toprow';
 
@@ -270,11 +252,10 @@ function cardElement({ customerName, milestoneName, shipTo, tasks }) {
   const statusBadge = document.createElement('span'); statusBadge.className = 'badge ' + (cls || ''); statusBadge.textContent = label;
 
   toprow.appendChild(title); toprow.appendChild(statusBadge);
-  const sub = document.createElement('div'); sub.className = 'card__sub'; sub.textContent = shipTo || '';
+  const sub = document.createElement('div'); sub.className = 'card__sub'; sub.textContent = address || '';
 
   header.appendChild(toprow); header.appendChild(sub);
 
-  // Table (labels: Due Date / Ship Date)
   const table = document.createElement('table'); table.className = 'table';
   table.innerHTML = `
     <thead>
@@ -290,7 +271,6 @@ function cardElement({ customerName, milestoneName, shipTo, tasks }) {
   `;
   const tbody = table.querySelector('tbody');
 
-  // Sort tasks by Ship Date ascending (nearest first)
   const sorted = tasks.slice().sort((a,b) => {
     const da = parseUSDateLike(a.CompletionDate);
     const db = parseUSDateLike(b.CompletionDate);
@@ -306,10 +286,8 @@ function cardElement({ customerName, milestoneName, shipTo, tasks }) {
     tr.setAttribute('role', 'button');
     tr.setAttribute('aria-label', `View items for ${t.Number || t.Name || 'shipment'}`);
 
-    // Shipment (name/number)
     const tdName = document.createElement('td'); tdName.textContent = t.Name || t.Number || ''; tr.appendChild(tdName);
 
-    // Tracking
     const tdTrack = document.createElement('td');
     if (t.ReleasesBOLTrackingNumber) {
       const a = document.createElement('a'); a.href = t.ReleasesBOLTrackingNumber; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = 'Click here to track';
@@ -317,16 +295,13 @@ function cardElement({ customerName, milestoneName, shipTo, tasks }) {
     } else { tdTrack.textContent = '—'; }
     tr.appendChild(tdTrack);
 
-    // Project
     const tdProject = document.createElement('td'); tdProject.textContent = t.MilestoneName || ''; tr.appendChild(tdProject);
 
-    // Due Date = DueDate + 7 days
     let duePlus7 = '';
     const due = parseUSDateLike(t.DueDate);
     if (due) duePlus7 = fmtDateTwoLine(addDays(due, 7));
     const tdDue = document.createElement('td'); tdDue.innerHTML = duePlus7 || ''; tr.appendChild(tdDue);
 
-    // Ship Date (CompletionDate)
     const tdShip = document.createElement('td'); tdShip.innerHTML = fmtDateTwoLine(t.CompletionDate) || ''; tr.appendChild(tdShip);
 
     tr.addEventListener('click', () => openDrawer(t));
@@ -339,14 +314,54 @@ function cardElement({ customerName, milestoneName, shipTo, tasks }) {
   return card;
 }
 
-/* ---------- State, Filters & Refresh ---------- */
+/* ---------- State, Filters, Refresh & Lock ---------- */
 let _GROUPED = new Map();
+let _LOCK = getRouteLock();   // <-- read once from URL
+let _LOCK_BADGE = null;
 
 function applyFilters() {
   renderCards(_GROUPED, {
-    customer: by('#searchCustomer').value,
-    milestone: by('#searchMilestone').value
+    // When locked, we hide the customer search and ignore its value
+    customer: _LOCK.enabled ? '' : (by('#searchCustomer')?.value || ''),
+    milestone: (by('#searchMilestone')?.value || '')
   });
+}
+
+function installLockBadgeIfNeeded(filteredRows){
+  // Ensure a badge exists/updates when locked
+  if (!_LOCK.enabled) {
+    if (_LOCK_BADGE) { _LOCK_BADGE.remove(); _LOCK_BADGE = null; }
+    return;
+  }
+  const wrap = by('.search-wrap');
+  if (!wrap) return;
+
+  const name = resolveLockedCustomerName(filteredRows) || `Customer #${_LOCK.customers.join(', ')}`;
+  if (!_LOCK_BADGE) {
+    _LOCK_BADGE = document.createElement('div');
+    _LOCK_BADGE.className = 'pill';
+    _LOCK_BADGE.style.whiteSpace = 'nowrap';
+    wrap.prepend(_LOCK_BADGE);
+  }
+  _LOCK_BADGE.textContent = `Viewing: ${name}`;
+}
+
+function resolveLockedCustomerName(rows){
+  // Try to find a friendly display name from rows
+  for (const r of rows) {
+    if (_LOCK.customers.includes(String(r.CustomerNumber))) {
+      if (r.CustomerName) return r.CustomerName;
+    }
+  }
+  return '';
+}
+
+function hideCustomerSearchIfLocked(){
+  if (!_LOCK.enabled) return;
+  const input = by('#searchCustomer');
+  const list = by('#comboCustomers');
+  if (input) input.style.display = 'none';
+  if (list) list.style.display = 'none';
 }
 
 function wireSearchAndButtons(onRefresh, hints) {
@@ -355,33 +370,87 @@ function wireSearchAndButtons(onRefresh, hints) {
   const clear = by('#clearFilters');
   const refresh = by('#refreshBtn');
 
-  setupCombo(cust, by('#comboCustomers'), hints.customers, applyFilters);
-  setupCombo(mile, by('#comboMilestones'), hints.milestones, applyFilters);
+  // Setup combos (customer combo is hidden if locked but harmless to init)
+  if (cust) setupCombo(cust, by('#comboCustomers'), hints.customers, applyFilters);
+  if (mile) setupCombo(mile, by('#comboMilestones'), hints.milestones, applyFilters);
 
-  clear.addEventListener('click', () => { cust.value = ''; mile.value = ''; applyFilters(); cust.focus(); });
+  // If URL pre-filters milestone, set it
+  const mPref = getPrefilterMilestone();
+  if (mPref && mile) { mile.value = mPref; }
 
-  refresh.addEventListener('click', async () => {
-    refresh.disabled = true; refresh.textContent = 'Refreshing…';
-    try { await onRefresh(); } finally { refresh.disabled = false; refresh.textContent = 'Refresh'; }
-  });
+  // Clear: if locked, DO NOT clear customer; only milestone
+  if (clear) {
+    clear.addEventListener('click', () => {
+      if (!_LOCK.enabled && cust) cust.value = '';
+      if (mile) mile.value = '';
+      applyFilters();
+      (mile || cust)?.focus();
+    });
+  }
+
+  // Refresh: re-fetch & re-apply lock + filters
+  if (refresh) {
+    refresh.addEventListener('click', async () => {
+      refresh.disabled = true; refresh.textContent = 'Refreshing…';
+      try { await onRefresh(); } finally { refresh.disabled = false; refresh.textContent = 'Refresh'; }
+    });
+  }
+
+  // Hide customer search if locked
+  hideCustomerSearchIfLocked();
 }
 
 async function reloadData(firstLoad=false) {
   const empty = by('#empty');
   try{
-    const rows = await loadDeliveries();
-    _GROUPED = groupByCustomerMilestone(rows);
+    const rows = await loadDeliveries();     // from api.js
 
-    const hints = deriveHints(rows);
-    if (firstLoad) wireSearchAndButtons(() => reloadData(false), hints);
-    else {
-      setupCombo(by('#searchCustomer'), by('#comboCustomers'), hints.customers, applyFilters);
-      setupCombo(by('#searchMilestone'), by('#comboMilestones'), hints.milestones, applyFilters);
+    // Apply client-side lock filter (cosmetic; GH Pages only)
+    const filtered = _LOCK.enabled
+      ? rows.filter(r => _LOCK.customers.includes(String(r.CustomerNumber)))
+      : rows;
+
+    // If locked but zero rows, show empty state (do not fall back to all)
+    if (_LOCK.enabled && filtered.length === 0) {
+      _GROUPED = new Map(); // nothing to render
+      installLockBadgeIfNeeded(filtered);
+      hideCustomerSearchIfLocked();
+      by('#cards').innerHTML = '';
+      empty.hidden = false;
+      empty.textContent = 'No results for this customer.';
+      return;
     }
 
-    renderCards(_GROUPED, { customer:'', milestone:'' });
+    _GROUPED = groupByCustomerMilestone(filtered);
+
+    const hints = deriveHints(filtered.length ? filtered : rows); // hints prefer filtered set
+    if (firstLoad) wireSearchAndButtons(() => reloadData(false), hints);
+    else {
+      const cust = by('#searchCustomer');
+      const mile = by('#searchMilestone');
+      if (cust) setupCombo(cust, by('#comboCustomers'), hints.customers, applyFilters);
+      if (mile) setupCombo(mile, by('#comboMilestones'), hints.milestones, applyFilters);
+      hideCustomerSearchIfLocked();
+    }
+
+    // If we prefilled milestone via URL, ensure filter applies
+    applyFilters();
+    installLockBadgeIfNeeded(filtered);
+
+    // Optional deep link to a task
+    const deepTask = getHashTask();
+    if (deepTask) {
+      // naive find: open first row with matching Number
+      for (const [, obj] of _GROUPED) {
+        for (const [, tasks] of obj.milestones) {
+          const hit = tasks.find(t => String(t.Number) === String(deepTask));
+          if (hit) { openDrawer(hit); break; }
+        }
+      }
+    }
+
     empty.hidden = true;
-    if (!rows?.length) { empty.hidden = false; empty.textContent = 'No data returned from API.'; }
+    if (!filtered?.length) { empty.hidden = false; empty.textContent = 'No data returned.'; }
   }catch(err){
     empty.hidden = false; empty.textContent = err?.message || 'Failed to load data.';
   }

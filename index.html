@@ -5,11 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AWM Delivery Tracker</title>
   <link rel="stylesheet" href="style.css" />
-    <!-- Favicons -->
-  <link rel="icon" type="image/png" sizes="32x32" href="/AWM.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="/AWM.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="/AWM.png">
-  <link rel="shortcut icon" href="/AWM.png">
+    
+  <!-- Favicons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="Favicon/favicon-96x96.png">
+  <link rel="icon" type="image/png" sizes="96x96" href="Favicon/favicon-96x96.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="Favicon/web-app-manifest-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="Favicon/web-app-manifest-512x512.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="Favicon/apple-touch-icon.png">
+  <link rel="shortcut icon" href="Favicon/favicon.ico">
+
+
   <meta name="theme-color" content="#297D53">
 
 </head>
@@ -54,6 +59,8 @@
 
   <!-- Load API first, then app -->
   <script src="api.js"></script>
-  <script src="app.js"></script>
+  <script type="module" src="routing.js"></script>
+  <script type="module" src="app.js"></script>
+
 </body>
 </html>
