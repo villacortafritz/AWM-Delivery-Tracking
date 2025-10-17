@@ -11,7 +11,27 @@ import { getRouteLock, getPrefilterMilestone, getHashTask } from './routing.js';
 const by = (sel, root=document) => root.querySelector(sel);
 const all = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 
-// -------- Dates --------
+// -------- Admin flag & slug helpers --------
+const _IS_ADMIN = new URLSearchParams(location.search).get('admin') === 'true';
+
+function tokenizeName(name){
+  return String(name || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+function slugFromWords(words, n) { return words.slice(0, n).join('-'); }
+function slugFull(name){ return tokenizeName(name).join('-'); }
+function normalizeCustomerName(name){ return slugFromWords(tokenizeName(name), 3); }
+function acronym(name){
+  const raw = String(name || '');
+  const caps = raw.match(/\b[A-Z]/g);
+  return caps ? caps.join('').toLowerCase() : '';
+}
+
+/* ---------- Dates ---------- */
 function parseUSDateLike(val){
   if(!val) return null;
   const m = String(val).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(.*)$/);
@@ -23,11 +43,7 @@ function parseUSDateLike(val){
   const d = new Date(`${yyyy}-${mm}-${dd} ${time}`);
   return isNaN(d) ? null : d;
 }
-function addDays(d, n){
-  const copy = new Date(d.getTime());
-  copy.setDate(copy.getDate() + n);
-  return copy;
-}
+function addDays(d, n){ const copy = new Date(d.getTime()); copy.setDate(copy.getDate() + n); return copy; }
 function fmtDateTwoLine(val){
   if(!val) return '';
   let d = val instanceof Date ? val : parseUSDateLike(val);
@@ -38,7 +54,7 @@ function fmtDateTwoLine(val){
   return `<div class="date"><div class="m">${month},</div><div class="dy">${day} ${yyyy}</div></div>`;
 }
 
-// Group tasks by Customer → Milestone
+/* ---------- Grouping ---------- */
 function groupByCustomerMilestone(rows) {
   const map = new Map();
   for (const r of rows) {
@@ -47,7 +63,6 @@ function groupByCustomerMilestone(rows) {
     if (!customer || !milestone) continue;
 
     if (!map.has(customer)) {
-      // Prefer Ship-To for card subheader; fall back to customer address
       map.set(customer, {
         address: r.QuoteShipToAddressFullAddress || r.CustomerAddressFullAddress || '',
         milestones: new Map()
@@ -60,14 +75,10 @@ function groupByCustomerMilestone(rows) {
   return map;
 }
 
-// Determine a single status label for a card (across tasks)
+/* ---------- Status summarize ---------- */
 function summarizeStatus(tasks) {
-  const statuses = tasks
-    .map(t => String(t.Status || '').trim())
-    .filter(Boolean);
-
+  const statuses = tasks.map(t => String(t.Status || '').trim()).filter(Boolean);
   if (statuses.length === 0) return { label: '—', cls: 'badge--plain' };
-
   const norm = new Set(statuses.map(s => s.toLowerCase()));
   if (norm.size === 1) {
     const only = statuses[0];
@@ -77,21 +88,18 @@ function summarizeStatus(tasks) {
   return { label: 'Mixed', cls: 'badge--mixed' };
 }
 
-/* Combobox Dropdowns w/ Keys */
+/* ---------- Combobox Dropdowns ---------- */
 function setupCombo(inputEl, listEl, values, onChange) {
   let filtered = values.slice();
   let activeIndex = -1;
-
   const render = () => {
     listEl.innerHTML = filtered.map((v,i) =>
       `<div class="combo-item ${i===activeIndex?'combo-item--active':''}" role="option" data-val="${v.replace(/"/g,'&quot;')}">${v}</div>`
     ).join('');
     listEl.hidden = filtered.length === 0;
   };
-
   const openAll = () => { filtered = values.slice(); activeIndex = -1; render(); };
   const close = () => { listEl.hidden = true; activeIndex = -1; };
-
   inputEl.addEventListener('focus', openAll);
   inputEl.addEventListener('input', () => {
     const q = inputEl.value.toLowerCase().trim();
@@ -112,8 +120,7 @@ function setupCombo(inputEl, listEl, values, onChange) {
   inputEl.addEventListener('blur', () => setTimeout(close, 120));
 }
 
-/* ---------- Right-side Drawer ---------- */
-
+/* ---------- Drawer ---------- */
 let drawerEls = null;
 function ensureDrawer() {
   if (drawerEls) return drawerEls;
@@ -151,9 +158,7 @@ function ensureDrawer() {
   const close = () => closeDrawer();
   overlay.addEventListener('click', close);
   panel.querySelector('.drawer-close').addEventListener('click', close);
-  document.addEventListener('keydown', (e) => {
-    if (!overlay.hidden && e.key === 'Escape') close();
-  });
+  document.addEventListener('keydown', (e) => { if (!overlay.hidden && e.key === 'Escape') close(); });
 
   drawerEls = { overlay, panel };
   return drawerEls;
@@ -185,9 +190,7 @@ function openDrawer(row) {
   const tbody = panel.querySelector('.drawer-table tbody');
   const empty = panel.querySelector('.drawer-empty');
   tbody.innerHTML = '';
-  const items = (Array.isArray(row.items) ? row.items : []).filter(
-    it => (it.name || '').trim() !== '80-0009'
-  );
+  const items = (Array.isArray(row.items) ? row.items : []).filter(it => (it.name || '').trim() !== '80-0009');
   if (items.length) {
     empty.hidden = true;
     for (const it of items) {
@@ -213,7 +216,6 @@ function closeDrawer() {
 }
 
 /* ---------- Rendering ---------- */
-
 function renderCards(grouped, filters) {
   const host = by('#cards');
   const empty = by('#empty');
@@ -316,42 +318,55 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
 
 /* ---------- State, Filters, Refresh & Lock ---------- */
 let _GROUPED = new Map();
-let _LOCK = getRouteLock();   // <-- read once from URL
+let _LOCK = getRouteLock();
 let _LOCK_BADGE = null;
+let _LOCK_RESOLVED_NAME = '';
+let _LOCK_RESOLVED_NUMBER = null;
 
 function applyFilters() {
   renderCards(_GROUPED, {
-    // When locked, we hide the customer search and ignore its value
     customer: _LOCK.enabled ? '' : (by('#searchCustomer')?.value || ''),
     milestone: (by('#searchMilestone')?.value || '')
   });
 }
 
 function installLockBadgeIfNeeded(filteredRows){
-  // Ensure a badge exists/updates when locked
   if (!_LOCK.enabled) {
     if (_LOCK_BADGE) { _LOCK_BADGE.remove(); _LOCK_BADGE = null; }
     return;
   }
-  const wrap = by('.search-wrap');
-  if (!wrap) return;
+  const host = document.querySelector('.topbar');
+  if (!host) return;
 
-  const name = resolveLockedCustomerName(filteredRows) || `Customer #${_LOCK.customers.join(', ')}`;
+  const displayName =
+    _LOCK_RESOLVED_NAME ||
+    resolveLockedCustomerName(filteredRows) ||
+    (_LOCK_RESOLVED_NUMBER ? `Customer #${_LOCK_RESOLVED_NUMBER}` : _LOCK.customers[0]);
+
   if (!_LOCK_BADGE) {
     _LOCK_BADGE = document.createElement('div');
-    _LOCK_BADGE.className = 'pill';
+    _LOCK_BADGE.className = 'pill lock-pill';
     _LOCK_BADGE.style.whiteSpace = 'nowrap';
-    wrap.prepend(_LOCK_BADGE);
+    host.appendChild(_LOCK_BADGE);
   }
-  _LOCK_BADGE.textContent = `Viewing: ${name}`;
+  _LOCK_BADGE.textContent = `Viewing: ${displayName}`;
 }
 
 function resolveLockedCustomerName(rows){
-  // Try to find a friendly display name from rows
+  if (_LOCK_RESOLVED_NAME) return _LOCK_RESOLVED_NAME;
+  const want = (_LOCK.customers[0] || '').toLowerCase();
+  if (/^\d+$/.test(want)) {
+    const hit = rows.find(r => String(r.CustomerNumber).toLowerCase() === want);
+    return hit ? hit.CustomerName : '';
+  }
   for (const r of rows) {
-    if (_LOCK.customers.includes(String(r.CustomerNumber))) {
-      if (r.CustomerName) return r.CustomerName;
-    }
+    const slug3 = normalizeCustomerName(r.CustomerName);
+    const words = tokenizeName(r.CustomerName);
+    const slug2 = slugFromWords(words, 2);
+    const slug1 = slugFromWords(words, 1);
+    const slugAll = words.join('-');
+    const acro = acronym(r.CustomerName);
+    if ([slug3, slug2, slug1, slugAll, acro].includes(want)) return r.CustomerName;
   }
   return '';
 }
@@ -370,15 +385,12 @@ function wireSearchAndButtons(onRefresh, hints) {
   const clear = by('#clearFilters');
   const refresh = by('#refreshBtn');
 
-  // Setup combos (customer combo is hidden if locked but harmless to init)
   if (cust) setupCombo(cust, by('#comboCustomers'), hints.customers, applyFilters);
   if (mile) setupCombo(mile, by('#comboMilestones'), hints.milestones, applyFilters);
 
-  // If URL pre-filters milestone, set it
   const mPref = getPrefilterMilestone();
   if (mPref && mile) { mile.value = mPref; }
 
-  // Clear: if locked, DO NOT clear customer; only milestone
   if (clear) {
     clear.addEventListener('click', () => {
       if (!_LOCK.enabled && cust) cust.value = '';
@@ -388,7 +400,6 @@ function wireSearchAndButtons(onRefresh, hints) {
     });
   }
 
-  // Refresh: re-fetch & re-apply lock + filters
   if (refresh) {
     refresh.addEventListener('click', async () => {
       refresh.disabled = true; refresh.textContent = 'Refreshing…';
@@ -396,23 +407,85 @@ function wireSearchAndButtons(onRefresh, hints) {
     });
   }
 
-  // Hide customer search if locked
   hideCustomerSearchIfLocked();
 }
 
+/* ---------- Name/slug → number resolver ---------- */
+function resolveCustomerNumberFromParam(rows, token){
+  const want = String(token || '').toLowerCase().trim();
+  if (!want) return { number: null, name: '' };
+
+  if (/^\d+$/.test(want)) {
+    const any = rows.find(r => String(r.CustomerNumber).toLowerCase() === want);
+    return { number: want, name: any ? any.CustomerName : '' };
+  }
+
+  for (const r of rows) {
+    const words = tokenizeName(r.CustomerName);
+    const candidates = [
+      slugFromWords(words, 3),
+      slugFromWords(words, 2),
+      slugFromWords(words, 1),
+      words.join('-'),
+      acronym(r.CustomerName)
+    ];
+    if (candidates.includes(want)) {
+      return { number: String(r.CustomerNumber), name: r.CustomerName };
+    }
+  }
+
+  // Last-chance fuzzy
+  for (const r of rows) {
+    const full = slugFull(r.CustomerName);
+    if (full.includes(want) || want.includes(full)) {
+      return { number: String(r.CustomerNumber), name: r.CustomerName };
+    }
+  }
+
+  return { number: null, name: '' };
+}
+
+/* ---------- Data load & render ---------- */
 async function reloadData(firstLoad=false) {
   const empty = by('#empty');
+
+  // Gate: require admin or single-customer link
+  document.body.classList.remove('no-controls'); // reset
+  if (!_IS_ADMIN && !_LOCK.enabled) {
+    // Hide top search + buttons and show large gate message
+    document.body.classList.add('no-controls');
+    by('#cards').innerHTML = '';
+    empty.hidden = false;
+    empty.innerHTML = `
+      <div class="access-gate">
+        <h2>Private Access Required</h2>
+        <p>This page is only accessible through your unique AWM delivery tracking link.</p>
+        <p>If you believe you received this page in error, please contact
+        <a href="mailto:support@affordablewm.com">support@affordablewm.com</a>.</p>
+      </div>`;
+    return;
+  }
+
   try{
-    const rows = await loadDeliveries();     // from api.js
+    const rows = await loadDeliveries();
 
-    // Apply client-side lock filter (cosmetic; GH Pages only)
-    const filtered = _LOCK.enabled
-      ? rows.filter(r => _LOCK.customers.includes(String(r.CustomerNumber)))
-      : rows;
+    _LOCK_RESOLVED_NAME = '';
+    _LOCK_RESOLVED_NUMBER = null;
 
-    // If locked but zero rows, show empty state (do not fall back to all)
-    if (_LOCK.enabled && filtered.length === 0) {
-      _GROUPED = new Map(); // nothing to render
+    if (_LOCK.enabled && !_IS_ADMIN) {
+      const resolved = resolveCustomerNumberFromParam(rows, _LOCK.customers[0]);
+      _LOCK_RESOLVED_NAME = resolved.name || '';
+      _LOCK_RESOLVED_NUMBER = resolved.number;
+    }
+
+    const filtered = (_LOCK.enabled && !_IS_ADMIN && _LOCK_RESOLVED_NUMBER != null)
+      ? rows.filter(r => String(r.CustomerNumber) === String(_LOCK_RESOLVED_NUMBER))
+      : (!_LOCK.enabled || _IS_ADMIN)
+        ? rows
+        : [];
+
+    if (_LOCK.enabled && !_IS_ADMIN && filtered.length === 0) {
+      _GROUPED = new Map();
       installLockBadgeIfNeeded(filtered);
       hideCustomerSearchIfLocked();
       by('#cards').innerHTML = '';
@@ -423,7 +496,7 @@ async function reloadData(firstLoad=false) {
 
     _GROUPED = groupByCustomerMilestone(filtered);
 
-    const hints = deriveHints(filtered.length ? filtered : rows); // hints prefer filtered set
+    const hints = deriveHints(filtered.length ? filtered : rows);
     if (firstLoad) wireSearchAndButtons(() => reloadData(false), hints);
     else {
       const cust = by('#searchCustomer');
@@ -433,14 +506,11 @@ async function reloadData(firstLoad=false) {
       hideCustomerSearchIfLocked();
     }
 
-    // If we prefilled milestone via URL, ensure filter applies
     applyFilters();
     installLockBadgeIfNeeded(filtered);
 
-    // Optional deep link to a task
     const deepTask = getHashTask();
     if (deepTask) {
-      // naive find: open first row with matching Number
       for (const [, obj] of _GROUPED) {
         for (const [, tasks] of obj.milestones) {
           const hit = tasks.find(t => String(t.Number) === String(deepTask));
