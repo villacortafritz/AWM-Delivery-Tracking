@@ -262,7 +262,7 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
   table.innerHTML = `
     <thead>
       <tr>
-        <th>Shipment</th>
+        <th>Task Number</th>
         <th>Tracking Link</th>
         <th>Project Name</th>
         <th><span class="th-stack"><span>Due</span><span>Date</span></span></th>
@@ -288,7 +288,10 @@ function cardElement({ customerName, milestoneName, address, tasks }) {
     tr.setAttribute('role', 'button');
     tr.setAttribute('aria-label', `View items for ${t.Number || t.Name || 'shipment'}`);
 
-    const tdName = document.createElement('td'); tdName.textContent = t.Name || t.Number || ''; tr.appendChild(tdName);
+    const tdNumber = document.createElement('td');
+    tdNumber.textContent = t.Number || '';
+    tr.appendChild(tdNumber);
+
 
     const tdTrack = document.createElement('td');
     if (t.ReleasesBOLTrackingNumber) {
